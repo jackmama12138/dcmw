@@ -429,7 +429,11 @@ async function antidetect(context) {
 
   await context.addInitScript(script); // future navigations
   const page = await getOrCreatePage(context);
-  await page.evaluate(script);         // current page
+  try {
+    await page.evaluate(script);       // current page
+  } catch (err) {
+    logger.warn(`antidetect: evaluate skipped (${err.message})`);
+  }
 }
 
 // ─── dispatcher ──────────────────────────────────────────────────────────────

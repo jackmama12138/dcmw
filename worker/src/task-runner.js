@@ -73,6 +73,7 @@ async function _execute(context, task, { onComplete, ctrl }) {
   async function settle(result) {
     if (settled) return;
     settled = true;
+    ctrl.stopped = true; // signal all pollers (rtcookie stopPoller, dwell tick) to self-clean
     await httpNotify(result.profile, result.status, result.target_url, result.task_id);
     await onComplete(result);
   }

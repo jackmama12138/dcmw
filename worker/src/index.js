@@ -153,7 +153,12 @@ async function handleTask(task) {
     onComplete: async (result) => {
       runningTasks.delete(key);
       client.send({ type: 'task_result', ...result });
-      await pool.release(profile);
+      try { await pool.release(profile); } catch (err) {
+        logger.error(`[${profile}] pool.release failed: ${err.message}`);
+        // Force slot back to idle so future tasks can use this profile.
+        const s = pool.slots.get(profile);
+        if (s) { s.state = 'idle'; s.context = null; s.releasing = false; }
+      }
     },
   });
   runningTasks.set(key, ctrl);
