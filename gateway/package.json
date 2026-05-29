@@ -1,0 +1,15 @@
+{
+  "name": "dcmw-gateway",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.3.2",
+    "winston": "^3.13.0",
+    "ws": "^8.17.1"
+  }
+}

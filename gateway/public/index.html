@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DCMW Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-size: 13px; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+
+    /* ── Layout ── */
+    .app { max-width: 1280px; margin: 0 auto; padding: 20px 24px; }
+
+    /* ── Header ── */
+    .header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #21262d; flex-wrap: wrap; }
+    .logo { font-size: 15px; font-weight: 700; color: #f0f6fc; letter-spacing: 3px; }
+    .stat-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border: 1px solid #30363d; border-radius: 20px; font-size: 11px; color: #c9d1d9; background: #161b22; }
+    .chip .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green  { background: #3fb950; box-shadow: 0 0 5px #3fb95055; }
+    .dot-blue   { background: #58a6ff; }
+    .dot-yellow { background: #d29922; }
+    .tick { font-size: 11px; color: #484f58; margin-left: auto; }
+
+    /* ── Sections ── */
+    .section { margin-bottom: 28px; }
+    .sec-title { font-size: 10px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+    .sec-title::after { content: ''; flex: 1; height: 1px; background: #21262d; }
+
+    /* ── Cards ── */
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; }
+    .card-pad { padding: 14px 16px; }
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+
+    /* ── Worker card ── */
+    .worker-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .worker-id { font-size: 13px; font-weight: 600; color: #f0f6fc; }
+    .worker-age { font-size: 11px; color: #484f58; margin-left: auto; }
+    .slot-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+    .slot { display: flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; border: 1px solid; font-size: 11px; cursor: default; max-width: 130px; }
+    .slot.idle { border-color: #21262d; color: #484f58; background: #0d1117; }
+    .slot.busy { border-color: #1f3a5f; color: #58a6ff; background: #0c1f3a; }
+    .slot-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .slot.idle .slot-dot { background: #30363d; }
+    .slot.busy .slot-dot { background: #58a6ff; animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .slot-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Badge ── */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; border: 1px solid; }
+    .badge-pending { background: #2d1b00; color: #d29922; border-color: #6a3d00; }
+    .badge-running { background: #0c1f3a; color: #58a6ff; border-color: #1f4080; }
+    .badge-done    { background: #0a1f10; color: #3fb950; border-color: #1a5c30; }
+    .badge-sm { font-size: 10px; padding: 1px 6px; }
+
+    /* ── Task table ── */
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th { padding: 8px 14px; text-align: left; font-size: 10px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #21262d; white-space: nowrap; }
+    .tbl td { padding: 10px 14px; border-bottom: 1px solid #0d1117; vertical-align: middle; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: #161b2233; }
+    .cell-id  { font-size: 12px; color: #8b949e; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cell-url { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Progress ── */
+    .prog-wrap { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+    .prog-bar  { flex: 1; height: 4px; background: #21262d; border-radius: 2px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 2px; transition: width .4s; }
+    .prog-fill.done    { background: #3fb950; }
+    .prog-fill.running { background: #58a6ff; }
+    .prog-fill.pending { background: #d29922; }
+    .prog-txt  { font-size: 11px; color: #8b949e; white-space: nowrap; }
+
+    /* ── Task stats ── */
+    .tstats { display: flex; gap: 8px; font-size: 11px; white-space: nowrap; }
+    .c-run  { color: #58a6ff; }
+    .c-ok   { color: #3fb950; }
+    .c-err  { color: #f85149; }
+    .c-dim  { color: #484f58; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 4px; }
+    .btn { padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; font-size: 11px; font-family: inherit; background: transparent; transition: background .15s; white-space: nowrap; }
+    .btn:disabled { opacity: .4; cursor: default; }
+    .btn-green  { border-color: #1a5c30; color: #3fb950; }
+    .btn-green:hover:not(:disabled)  { background: #0a1f10; }
+    .btn-yellow { border-color: #6a3d00; color: #d29922; }
+    .btn-yellow:hover:not(:disabled) { background: #2d1b00; }
+    .btn-red    { border-color: #5c1a1a; color: #f85149; }
+    .btn-red:hover:not(:disabled)    { background: #2d0a0a; }
+    .btn-primary { background: #238636; color: #fff; border-color: #2ea043; padding: 7px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-ghost { background: transparent; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; }
+    .btn-ghost:hover { background: #21262d; }
+
+    /* ── Mode toggle ── */
+    .mode-toggle { display: flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; margin-bottom: 16px; width: fit-content; }
+    .mode-btn { padding: 6px 16px; background: transparent; border: none; color: #8b949e; cursor: pointer; font-family: inherit; font-size: 12px; }
+    .mode-btn.active { background: #21262d; color: #f0f6fc; }
+
+    /* ── Form ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .fg { display: flex; flex-direction: column; gap: 5px; }
+    .fg.full { grid-column: 1 / -1; }
+    .fg label { font-size: 10px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: .8px; }
+    .fg label span { font-weight: 400; text-transform: none; letter-spacing: 0; color: #484f58; }
+    input, textarea, select {
+      background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+      padding: 7px 10px; border-radius: 6px; width: 100%;
+      font-family: inherit; font-size: 13px; outline: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: #58a6ff; box-shadow: 0 0 0 3px #58a6ff18; }
+    textarea { resize: vertical; min-height: 90px; }
+    select option { background: #161b22; }
+    .submit-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .form-msg { font-size: 12px; min-height: 16px; }
+
+    /* ── Templates list ── */
+    .tpl-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #21262d; }
+    .tpl-row:last-child { border-bottom: none; }
+    .tpl-name { font-weight: 600; color: #f0f6fc; min-width: 110px; }
+    .tpl-desc { color: #8b949e; font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tpl-meta { font-size: 11px; color: #484f58; white-space: nowrap; }
+
+    /* ── Misc ── */
+    .empty { padding: 24px 16px; text-align: center; color: #484f58; }
+    .divider { border: none; border-top: 1px solid #21262d; margin: 14px 0; }
+    .sub-title { font-size: 11px; font-weight: 600; color: #8b949e; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">DCMW</div>
+    <div class="stat-chips">
+      <div class="chip"><span class="dot dot-green"></span><span id="s-workers">— workers</span></div>
+      <div class="chip"><span class="dot dot-blue"></span><span id="s-slots">— slots</span></div>
+      <div class="chip"><span class="dot dot-yellow"></span><span id="s-running">— running</span></div>
+    </div>
+    <div class="tick" id="tick">—</div>
+  </div>
+
+  <!-- Workers -->
+  <div class="section">
+    <div class="sec-title">Workers</div>
+    <div class="cards-grid" id="workers-grid">
+      <div class="card card-pad empty">Connecting...</div>
+    </div>
+  </div>
+
+  <!-- Tasks -->
+  <div class="section">
+    <div class="sec-title">Tasks</div>
+    <div class="card" style="overflow:hidden">
+      <table class="tbl" id="task-tbl">
+        <thead>
+          <tr>
+            <th>Task ID</th>
+            <th>URL</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>↑ / ✓ / ✗</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add Task -->
+  <div class="section">
+    <div class="sec-title">Add Task</div>
+    <div class="card card-pad">
+      <div class="mode-toggle">
+        <button class="mode-btn active" onclick="setMode('tpl')">Use Template</button>
+        <button class="mode-btn"        onclick="setMode('custom')">Custom Pipeline</button>
+      </div>
+
+      <form id="task-form">
+        <!-- Template mode -->
+        <div id="pane-tpl">
+          <div class="form-grid">
+            <div class="fg">
+              <label>Template</label>
+              <select id="f-tpl"><option value="">Loading...</option></select>
+            </div>
+            <div class="fg">
+              <label>Target URL</label>
+              <input type="url" id="f-tpl-url" placeholder="https://www.baidu.com">
+            </div>
+            <div class="fg">
+              <label>Count <span>instances</span></label>
+              <input type="number" id="f-tpl-count" value="1" min="1">
+            </div>
+            <div class="fg">
+              <label>Hang Time <span>seconds — override template default</span></label>
+              <input type="number" id="f-tpl-time" placeholder="use template default">
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom mode -->
+        <div id="pane-custom" style="display:none">
+          <div class="form-grid">
+            <div class="fg">
+              <label>Target URL</label>
+              <input type="url" id="f-cus-url" placeholder="https://...">
+            </div>
+            <div class="fg">
+              <label>Task ID <span>optional — auto-generated if blank</span></label>
+              <input type="text" id="f-cus-id" placeholder="auto">
+            </div>
+            <div class="fg">
+              <label>Count <span>instances</span></label>
+              <input type="number" id="f-cus-count" value="1" min="1">
+            </div>
+            <div class="fg">
+              <label>Hang Time <span>seconds</span></label>
+              <input type="number" id="f-cus-time" value="600" min="1">
+            </div>
+            <div class="fg full">
+              <label>Pipeline JSON <span>use {target_url} as placeholder</span></label>
+              <textarea id="f-cus-pipe" placeholder='[{"type":"navigate","url":"{target_url}"},{"type":"wait","min":2000,"max":4000},{"type":"scroll","y":300},{"type":"dwell"},{"type":"close"}]'></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" class="btn-primary">Submit Task</button>
+          <div class="form-msg" id="task-msg"></div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Templates -->
+  <div class="section">
+    <div class="sec-title">Templates</div>
+    <div class="card card-pad">
+      <div id="tpl-list"><div class="c-dim">No templates yet</div></div>
+
+      <hr class="divider">
+      <div class="sub-title">Create / Update Template</div>
+      <div class="form-grid">
+        <div class="fg">
+          <label>Name</label>
+          <input type="text" id="nt-name" placeholder="baidu_browse">
+        </div>
+        <div class="fg">
+          <label>Description <span>optional</span></label>
+          <input type="text" id="nt-desc" placeholder="百度浏览停留">
+        </div>
+        <div class="fg">
+          <label>Default Hang Time <span>seconds</span></label>
+          <input type="number" id="nt-time" placeholder="600">
+        </div>
+        <div class="fg full">
+          <label>Pipeline JSON <span>use {target_url} so any URL works</span></label>
+          <textarea id="nt-pipe" placeholder='[{"type":"navigate","url":"{target_url}"},{"type":"wait","min":2000,"max":4000},{"type":"scroll","y":300},{"type":"dwell"},{"type":"close"}]'></textarea>
+        </div>
+      </div>
+      <div class="submit-row">
+        <button class="btn-primary" onclick="saveTemplate()">Save Template</button>
+        <div class="form-msg" id="tpl-msg"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let mode = 'tpl';
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function ago(ts) {
+  if (!ts) return '—';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60)   return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  return Math.floor(s/3600) + 'h ago';
+}
+function shortUrl(url) {
+  try { const u = new URL(url); return u.hostname + (u.pathname !== '/' ? u.pathname.slice(0,18) : ''); }
+  catch { return String(url).slice(0,28); }
+}
+function flash(text, ok) {
+  const el = document.getElementById('tick');
+  el.textContent = (ok ? '✓ ' : '✗ ') + text;
+  el.style.color = ok ? '#3fb950' : '#f85149';
+  setTimeout(() => { el.style.color = ''; refresh(); }, 2000);
+}
+function msg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.style.color = ok ? '#3fb950' : '#f85149';
+}
+
+// ── Mode toggle ────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach((b, i) => b.classList.toggle('active', (i===0) === (m==='tpl')));
+  document.getElementById('pane-tpl').style.display    = m === 'tpl' ? '' : 'none';
+  document.getElementById('pane-custom').style.display = m === 'custom' ? '' : 'none';
+}
+
+// ── Render Workers ─────────────────────────────────────────────────────────
+function renderWorkers(ws) {
+  const grid = document.getElementById('workers-grid');
+  if (!ws.length) { grid.innerHTML = '<div class="card card-pad empty">No workers connected</div>'; return; }
+
+  let totalSlots = 0, busySlots = 0;
+  ws.forEach(w => { totalSlots += w.slots.total; busySlots += w.slots.busy; });
+  document.getElementById('s-workers').textContent = ws.length + ' worker' + (ws.length !== 1 ? 's' : '');
+  document.getElementById('s-slots').textContent   = busySlots + '/' + totalSlots + ' busy';
+
+  grid.innerHTML = ws.map(w => {
+    const profs = w.profiles ?? [];
+    const dots = profs.map(p => {
+      const busy = p.state === 'busy';
+      const lbl  = busy ? shortUrl(p.targetUrl || '') : p.profileName;
+      const tip  = busy ? p.profileName + ': ' + (p.targetUrl ?? '') : p.profileName + ': idle';
+      return `<div class="slot ${esc(p.state)}" title="${esc(tip)}">
+        <div class="slot-dot"></div>
+        <span class="slot-lbl">${esc(lbl)}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="card card-pad">
+      <div class="worker-hd">
+        <span class="worker-id">${esc(w.workerId)}</span>
+        <span class="badge badge-sm ${w.connected ? 'badge-running' : 'badge-pending'}">${w.connected ? '● online' : '○ offline'}</span>
+        <span class="worker-age">${ago(w.lastHeartbeat)}</span>
+      </div>
+      <div class="slot-wrap">${dots || '<span class="c-dim">no profiles</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render Tasks ───────────────────────────────────────────────────────────
+function renderTasks(tasks) {
+  const tbody = document.querySelector('#task-tbl tbody');
+  const running = tasks.filter(t => t.status === 'running').length;
+  document.getElementById('s-running').textContent = running + ' running';
+
+  if (!tasks.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No tasks</td></tr>'; return; }
+
+  tbody.innerHTML = tasks.map(t => {
+    const done  = t.completed + t.failed;
+    const pct   = t.count > 0 ? Math.round(done / t.count * 100) : 0;
+    const bc    = { pending:'badge-pending', running:'badge-running', done:'badge-done' }[t.status] ?? '';
+    const pc    = t.status;
+
+    const actions = t.status === 'done'
+      ? '<span class="c-dim">—</span>'
+      : `<div class="btn-row">
+          <button class="btn btn-green"  onclick="adjTime('${esc(t.target_url)}',300)"        title="+5 min">+5m</button>
+          <button class="btn btn-yellow" onclick="adjTime('${esc(t.target_url)}',-300)"       title="-5 min">−5m</button>
+          <button class="btn btn-red"    onclick="stopTask('${esc(t.task_id)}')"              title="Force stop task">Stop</button>
+        </div>`;
+
+    return `<tr>
+      <td><div class="cell-id" title="${esc(t.task_id)}">${esc(t.task_id)}</div></td>
+      <td><div class="cell-url" title="${esc(t.target_url)}">${esc(shortUrl(t.target_url))}</div></td>
+      <td><span class="badge ${bc}">${esc(t.status)}</span></td>
+      <td>
+        <div class="prog-wrap">
+          <div class="prog-bar"><div class="prog-fill ${pc}" style="width:${pct}%"></div></div>
+          <span class="prog-txt">${done}/${t.count}</span>
+        </div>
+      </td>
+      <td>
+        <div class="tstats">
+          <span class="c-run" title="running">↑${t.running}</span>
+          <span class="c-ok"  title="completed">✓${t.completed}</span>
+          <span class="${t.failed > 0 ? 'c-err' : 'c-dim'}" title="failed">✗${t.failed}</span>
+        </div>
+      </td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Render Templates ───────────────────────────────────────────────────────
+function renderTemplates(tpls) {
+  // Update select
+  const sel = document.getElementById('f-tpl');
+  sel.innerHTML = tpls.length
+    ? tpls.map(t => `<option value="${esc(t.name)}">${esc(t.name)}${t.description ? ' — '+esc(t.description) : ''}</option>`).join('')
+    : '<option value="">No templates — create one below</option>';
+
+  // List
+  const list = document.getElementById('tpl-list');
+  if (!tpls.length) { list.innerHTML = '<div class="c-dim">No templates yet — create one below.</div>'; return; }
+  list.innerHTML = tpls.map(t => `
+    <div class="tpl-row">
+      <span class="tpl-name">${esc(t.name)}</span>
+      <span class="tpl-desc">${esc(t.description || '—')}</span>
+      <span class="tpl-meta">${t.pipeline.length} steps${t.task_time ? ' · '+t.task_time+'s' : ''}</span>
+      <button class="btn btn-red" onclick="delTemplate('${esc(t.name)}')">Delete</button>
+    </div>`).join('');
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+async function stopTask(taskId) {
+  if (!confirm('强制结束任务 ' + taskId + '？')) return;
+  const r = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/stop`, {
+    method: 'POST',
+  }).then(r => r.json()).catch(e => ({ error: e.message }));
+  r.ok ? flash('Task stopped: ' + taskId, true) : flash(r.error || 'failed', false);
+}
+
+async function adjTime(url, delta) {
+  const r = await fetch('/api/tasks/adjust-time', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_url: url, delta }),
+  }).then(r => r.json()).catch(e => ({ error: e.message }));
+  r.ok ? flash((delta > 0 ? '+' : '') + delta + 's applied', true) : flash(r.error, false);
+}
+
+// ── Task submit ────────────────────────────────────────────────────────────
+document.getElementById('task-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  msg('task-msg', '', true);
+
+  let body;
+  if (mode === 'tpl') {
+    const tpl = document.getElementById('f-tpl').value;
+    const url = document.getElementById('f-tpl-url').value.trim();
+    if (!tpl) { msg('task-msg', 'Select a template', false); return; }
+    if (!url) { msg('task-msg', 'Target URL is required', false); return; }
+    const t = document.getElementById('f-tpl-time').value;
+    body = { template: tpl, target_url: url,
+      count: parseInt(document.getElementById('f-tpl-count').value) || 1,
+      ...(t ? { task_time: parseInt(t) } : {}) };
+  } else {
+    const url = document.getElementById('f-cus-url').value.trim();
+    if (!url) { msg('task-msg', 'Target URL is required', false); return; }
+    const raw = document.getElementById('f-cus-pipe').value.trim();
+    let pipeline;
+    try { pipeline = raw ? JSON.parse(raw) : []; } catch { msg('task-msg', 'Invalid pipeline JSON', false); return; }
+    const tid = document.getElementById('f-cus-id').value.trim();
+    body = { ...(tid ? { task_id: tid } : {}), target_url: url,
+      count: parseInt(document.getElementById('f-cus-count').value) || 1,
+      task_time: parseInt(document.getElementById('f-cus-time').value) || 600, pipeline };
+  }
+
+  const r = await fetch('/task/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(r => r.json()).catch(e => ({ error: e.message }));
+
+  if (r.ok) {
+    msg('task-msg', '✓ ' + r.task.task_id + ' submitted', true);
+    e.target.reset(); setMode(mode); refresh();
+  } else {
+    msg('task-msg', r.error ?? 'Unknown error', false);
+  }
+});
+
+// ── Template CRUD ──────────────────────────────────────────────────────────
+async function saveTemplate() {
+  const name = document.getElementById('nt-name').value.trim();
+  const desc = document.getElementById('nt-desc').value.trim();
+  const time = document.getElementById('nt-time').value;
+  const raw  = document.getElementById('nt-pipe').value.trim();
+  if (!name) { msg('tpl-msg', 'Name is required', false); return; }
+  let pipeline;
+  try { pipeline = JSON.parse(raw); } catch { msg('tpl-msg', 'Invalid pipeline JSON', false); return; }
+  const r = await fetch('/api/templates', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: desc, pipeline, task_time: time ? parseInt(time) : null }),
+  }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.ok) {
+    msg('tpl-msg', '✓ Saved "' + name + '"', true);
+    ['nt-name','nt-desc','nt-time','nt-pipe'].forEach(id => document.getElementById(id).value = '');
+    loadTemplates();
+  } else { msg('tpl-msg', r.error, false); }
+}
+
+async function delTemplate(name) {
+  if (!confirm('Delete template "' + name + '"?')) return;
+  await fetch('/api/templates/' + encodeURIComponent(name), { method: 'DELETE' });
+  loadTemplates();
+}
+
+// ── Refresh ────────────────────────────────────────────────────────────────
+async function loadTemplates() {
+  const tpls = await fetch('/api/templates').then(r => r.json()).catch(() => []);
+  renderTemplates(tpls);
+}
+
+async function refresh() {
+  try {
+    const [ws, tasks] = await Promise.all([
+      fetch('/api/workers').then(r => r.json()),
+      fetch('/api/tasks').then(r => r.json()),
+    ]);
+    renderWorkers(ws);
+    renderTasks(tasks);
+    document.getElementById('tick').textContent = new Date().toLocaleTimeString();
+    document.getElementById('tick').style.color = '';
+  } catch { document.getElementById('tick').textContent = 'fetch error'; }
+}
+
+// Init
+refresh();
+loadTemplates();
+setInterval(refresh, 3000);
+setInterval(loadTemplates, 15000);
+</script>
+</body>
+</html>

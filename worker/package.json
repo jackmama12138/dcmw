@@ -1,0 +1,14 @@
+{
+  "name": "dcmw-worker",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.44.0",
+    "winston": "^3.13.0",
+    "ws": "^8.17.1"
+  }
+}
