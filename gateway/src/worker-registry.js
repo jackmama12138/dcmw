@@ -30,9 +30,17 @@ class WorkerRegistry {
     this.workers.delete(workerId);
   }
 
-  updateHeartbeat(workerId) {
+  updateHeartbeat(workerId, profileInfo = {}) {
     const w = this.workers.get(workerId);
-    if (w) w.lastHeartbeat = Date.now();
+    if (!w) return;
+    w.lastHeartbeat = Date.now();
+    for (const [profileName, info] of Object.entries(profileInfo)) {
+      const slot = w.profiles.get(profileName);
+      if (slot) {
+        slot.currentUrl   = info.url   || null;
+        slot.currentTitle = info.title || null;
+      }
+    }
   }
 
   markBusy(workerId, profileName, taskId = null, targetUrl = null) {
@@ -129,9 +137,10 @@ class WorkerRegistry {
     return [...this.workers.entries()].map(([workerId, { ws, profiles, lastHeartbeat }]) => {
       const stats = { idle: 0, busy: 0, total: profiles.size };
       const slotList = [];
-      for (const [profileName, { state, taskId, targetUrl }] of profiles) {
+      for (const [profileName, s] of profiles) {
+        const { state, taskId, targetUrl, currentUrl, currentTitle } = s;
         stats[state] = (stats[state] ?? 0) + 1;
-        slotList.push({ profileName, state, taskId, targetUrl });
+        slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null });
       }
       return {
         workerId,

@@ -111,7 +111,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
     }
 
     case 'heartbeat':
-      registry.updateHeartbeat(workerId);
+      registry.updateHeartbeat(workerId, msg.profiles ?? {});
       break;
 
     case 'task_result': {

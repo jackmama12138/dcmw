@@ -110,8 +110,10 @@
           <div v-for="p in w.profiles" :key="p.profileName"
             :class="['flex items-center gap-1 rounded-lg px-2 py-1 text-xs border', profileStyle(p.state)]">
             <span class="font-mono">{{ p.profileName }}</span>
-            <span v-if="p.state === 'busy'" class="opacity-40 text-xs max-w-[80px] truncate" :title="p.targetUrl">
-              {{ shortUrl(p.targetUrl) }}
+            <span v-if="p.state === 'busy'"
+              class="opacity-50 text-xs max-w-[120px] truncate"
+              :title="(p.currentTitle || p.targetUrl) + '\n' + (p.currentUrl || '')">
+              {{ p.currentTitle || shortUrl(p.currentUrl || p.targetUrl) }}
             </span>
             <button v-if="p.state === 'busy'" @click="stopNode(w.workerId, p.profileName)"
               class="hover:text-red-400 transition-colors ml-0.5 opacity-60 hover:opacity-100">✕</button>

@@ -18,7 +18,7 @@ const VALID_ACTION_TYPES = new Set([
   'navigate','open','goto','reload',
   'wait','dwell',
   'click','dblclick','hover','fill','scroll','mousemove','mousedown','mouseup',
-  'rtcookie','screenshot',
+  'rtcookie','screenshot','antidetect',
   'eval','run-code',
   'close',
 ]);

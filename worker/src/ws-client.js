@@ -105,11 +105,13 @@ class GatewayClient {
 
   _startHeartbeat() {
     this._stopHeartbeat();
-    this.heartbeatTimer = setInterval(() => {
+    this.heartbeatTimer = setInterval(async () => {
+      const profiles = await this.pool.getActivePageInfo().catch(() => ({}));
       this.send({
         type: 'heartbeat',
         worker_id: this.workerId,
         slots: this.pool.stats(),
+        profiles,
       });
     }, HEARTBEAT_MS);
   }

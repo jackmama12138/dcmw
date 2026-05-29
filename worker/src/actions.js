@@ -408,13 +408,37 @@ async function screenshot(context, { fullPage = false, quality = 60 }, ctrl) {
   }).catch(err => logger.warn(`screenshot report: ${err.message}`));
 }
 
+// antidetect: inject visibility spoofing + synthetic human-activity loop into every page.
+// Uses context.addInitScript so it survives navigations, and evaluates immediately on the
+// current page. The activity loop fires every 30–60s — negligible CPU even at 400 instances.
+async function antidetect(context) {
+  const script = () => {
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+    Object.defineProperty(document, 'hidden',          { get: () => false,     configurable: true });
+
+    if (!window._antiPauseHumanHook) {
+      const triggerNext = () => {
+        const types = ['mousemove', 'keydown', 'wheel', 'click'];
+        document.dispatchEvent(new Event(types[Math.floor(Math.random() * types.length)], { bubbles: true }));
+        const delay = 30_000 + Math.floor(Math.random() * 30_000); // 30–60s
+        window._antiPauseHumanHook = setTimeout(triggerNext, delay);
+      };
+      triggerNext();
+    }
+  };
+
+  await context.addInitScript(script); // future navigations
+  const page = await getOrCreatePage(context);
+  await page.evaluate(script);         // current page
+}
+
 // ─── dispatcher ──────────────────────────────────────────────────────────────
 
 const ACTION_MAP = {
   navigate, open: navigate, goto: navigate, reload,
   wait, dwell,
   click, dblclick, hover, fill, scroll, mousemove, mousedown, mouseup,
-  rtcookie, screenshot,
+  rtcookie, screenshot, antidetect,
   eval: evalAction, 'run-code': runCode,
   close,
 };

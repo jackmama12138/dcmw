@@ -108,6 +108,22 @@ class ChromePool {
     logger.info(`[${profileName}] released → idle`);
   }
 
+  async getActivePageInfo() {
+    const result = {};
+    for (const [name, slot] of this.slots) {
+      if (slot.state !== STATE.BUSY || !slot.context) continue;
+      try {
+        const pages = slot.context.pages();
+        if (!pages.length) continue;
+        const page = pages[0];
+        const url = page.url();
+        const title = await page.title().catch(() => '');
+        result[name] = { url, title };
+      } catch {}
+    }
+    return result;
+  }
+
   _loadWindowState(profileName) {
     try {
       const p = path.join(this.profilesBaseDir, profileName, '.window-state.json');
