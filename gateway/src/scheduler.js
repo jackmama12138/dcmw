@@ -96,16 +96,31 @@ class Scheduler {
       ? shuffleSlots(rawSlots)
       : interleaveByWorker(rawSlots);
 
-    let slotIdx = 0;
+    const usedSlots = new Set();
 
     for (const task of tasks) {
-      if (slotIdx >= idleSlots.length) break;
+      if (usedSlots.size >= idleSlots.length) break;
 
       const remaining = task.count - task.running - task.completed - task.failed;
       if (remaining <= 0) continue;
 
-      const batch = idleSlots.slice(slotIdx, slotIdx + remaining);
-      slotIdx += batch.length;
+      // Filter available (unused) slots, then apply target constraints
+      let candidateSlots = idleSlots.filter((_, i) => !usedSlots.has(i));
+
+      if (task.target_node) {
+        const { worker_id, profile } = task.target_node;
+        candidateSlots = candidateSlots.filter(
+          s => s.workerId === worker_id && s.profileName === profile
+        );
+      } else if (task.target_worker_id) {
+        candidateSlots = candidateSlots.filter(s => s.workerId === task.target_worker_id);
+      }
+
+      const batch = candidateSlots.slice(0, remaining);
+      // Mark used in the original idleSlots index
+      for (const slot of batch) {
+        usedSlots.add(idleSlots.indexOf(slot));
+      }
 
       let sentCount = 0;
 

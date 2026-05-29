@@ -1,6 +1,22 @@
 const actionsLoader = require('./actions-loader');
 const logger = require('./logger');
 
+const CENTER_NOTIFY_URL = process.env.CENTER_NOTIFY_URL;
+
+async function httpNotify(profile, status, targetUrl, taskId) {
+  if (!CENTER_NOTIFY_URL) return;
+  try {
+    await fetch(CENTER_NOTIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node_name: profile, status, target_url: targetUrl, task_id: taskId }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    logger.warn(`httpNotify failed: ${err.message}`);
+  }
+}
+
 /**
  * Execute a task's pipeline inside the given BrowserContext.
  *
@@ -21,6 +37,8 @@ function runTask(context, task, { onComplete }) {
   const ctrl = {
     stopped: false,
     task_time: Math.max(0, Number(task.task_time) || 0),
+    task_id: task.task_id,
+    profile: task.profile,
     stop() { this.stopped = true; },
     updateTaskTime(seconds) { this.task_time = Math.max(0, seconds); },
   };
@@ -50,6 +68,7 @@ async function _execute(context, task, { onComplete, ctrl }) {
   async function settle(result) {
     if (settled) return;
     settled = true;
+    await httpNotify(result.profile, result.status, result.target_url, result.task_id);
     await onComplete(result);
   }
 

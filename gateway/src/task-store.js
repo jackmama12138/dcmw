@@ -32,12 +32,14 @@ class TaskStore {
       target_url: raw.target_url ?? '',
       task_type: raw.task_type ?? '',
       pipeline: Array.isArray(raw.pipeline) ? raw.pipeline : [],
-      task_time: Number(raw.task_time) || 3600,
+      task_time: Math.min(Math.max(1, Number(raw.task_time) || 3600), 86400),
       count: Math.max(1, Number(raw.count) || 1),
       running: 0,
       completed: 0,
       failed: 0,
       status: 'pending',
+      target_worker_id: raw.target_worker_id ?? null,
+      target_node: raw.target_node ?? null,
       created_at: now,
       updated_at: now,
     };
@@ -149,7 +151,7 @@ class TaskStore {
       local raw = redis.call('GET', KEYS[1])
       if not raw then return false end
       local t = cjson.decode(raw)
-      t.task_time = math.max(0, t.task_time + tonumber(ARGV[1]))
+      t.task_time = math.min(math.max(1, t.task_time + tonumber(ARGV[1])), 86400)
       t.updated_at = tonumber(ARGV[2])
       redis.call('SET', KEYS[1], cjson.encode(t))
       return cjson.encode(t)
@@ -230,10 +232,23 @@ class TaskStore {
     await this.redis.set('actions:code', code);
   }
 
+  // ─── cookie collection ────────────────────────────────────────────────────
+
+  async addCookie(taskId, data) {
+    const key = `cookies:task:${taskId}`;
+    await this.redis.lpush(key, JSON.stringify(data));
+    await this.redis.expire(key, 86400);
+  }
+
+  async getCookies(taskId) {
+    const items = await this.redis.lrange(`cookies:task:${taskId}`, 0, -1);
+    return items.map(i => { try { return JSON.parse(i); } catch { return null; } }).filter(Boolean);
+  }
+
   // ─── queries ──────────────────────────────────────────────────────────────
 
   async getDispatchable() {
-    const ids = await this.redis.zrange('tasks:index', 0, -1);
+    const ids = await this.redis.zrange('tasks:index', 0, 199);
     if (ids.length === 0) return [];
     const tasks = await Promise.all(ids.map(id => this.get(id)));
     return tasks.filter(t => {

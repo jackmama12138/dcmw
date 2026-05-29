@@ -1,6 +1,7 @@
 const http = require('http');
 const path = require('path');
 const express = require('express');
+const cors = require('cors');
 
 const config = require('./config');
 const logger = require('./logger');
@@ -25,6 +26,7 @@ async function main() {
 
   // ─── express ──────────────────────────────────────────────────────────────
   const app = express();
+  app.use(cors());
   app.use(express.json());
   app.use(express.static(path.resolve(__dirname, '../public')));
   app.use(createRouter({ taskStore, registry, scheduler }));

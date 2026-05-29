@@ -2,6 +2,34 @@ const { Router } = require('express');
 const vm = require('vm');
 const logger = require('./logger');
 
+const VALID_ACTION_TYPES = new Set([
+  'navigate','open','goto','reload',
+  'wait','dwell',
+  'click','dblclick','hover','scroll','mousemove','mousedown','mouseup',
+  'rtcookie',
+  'eval','run-code',
+  'close',
+]);
+
+function validatePipeline(pipeline) {
+  if (!Array.isArray(pipeline) || pipeline.length === 0) {
+    return 'pipeline must be a non-empty array';
+  }
+  for (let i = 0; i < pipeline.length; i++) {
+    const step = pipeline[i];
+    if (!step || typeof step !== 'object' || Array.isArray(step)) {
+      return `step[${i}]: must be a plain object`;
+    }
+    if (!step.type || typeof step.type !== 'string') {
+      return `step[${i}]: missing "type" field`;
+    }
+    if (!VALID_ACTION_TYPES.has(step.type)) {
+      return `step[${i}]: unknown type "${step.type}"`;
+    }
+  }
+  return null;
+}
+
 function createRouter({ taskStore, registry, scheduler }) {
   const router = Router();
 
@@ -13,7 +41,9 @@ function createRouter({ taskStore, registry, scheduler }) {
       return res.status(400).json({ error: 'request body must be JSON' });
     }
 
-    const { target_url, template: templateName } = body;
+    const { target_url } = body;
+    // task_type and template are both valid for template lookup
+    const templateName = body.template ?? body.task_type ?? null;
     if (!target_url) return res.status(400).json({ error: 'target_url is required' });
 
     // Auto-generate task_id if not provided — prevents duplicate errors on repeated submits.
@@ -37,8 +67,9 @@ function createRouter({ taskStore, registry, scheduler }) {
       if (task_time == null) task_time = tpl.task_time;
     }
 
-    if (!Array.isArray(pipeline) || pipeline.length === 0) {
-      return res.status(400).json({ error: 'pipeline is required (or specify a template)' });
+    const pipelineError = validatePipeline(pipeline);
+    if (pipelineError) {
+      return res.status(400).json({ error: pipelineError });
     }
 
     let task;
@@ -162,8 +193,9 @@ function createRouter({ taskStore, registry, scheduler }) {
   router.post('/api/templates', async (req, res) => {
     const { name, description, pipeline, task_time } = req.body ?? {};
     if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' });
-    if (!Array.isArray(pipeline) || pipeline.length === 0) {
-      return res.status(400).json({ error: 'pipeline must be a non-empty array' });
+    const pipelineError = validatePipeline(pipeline);
+    if (pipelineError) {
+      return res.status(400).json({ error: pipelineError });
     }
     try {
       const tpl = await taskStore.setTemplate(name, { description, pipeline, task_time });
@@ -227,6 +259,43 @@ function createRouter({ taskStore, registry, scheduler }) {
       return res.json({ ok: true, dispatch_mode });
     } catch (err) {
       return res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ─── worker task completion notify ───────────────────────────────────────
+  // POST /notify { node_name, status, target_url, task_id? }
+  router.post('/notify', (req, res) => {
+    const { node_name, status, target_url, task_id } = req.body ?? {};
+    if (!node_name || !status) {
+      return res.status(400).json({ error: 'node_name and status are required' });
+    }
+    logger.info(`/notify node=${node_name} status=${status} task=${task_id ?? '?'} url=${target_url ?? '?'}`);
+    return res.json({ ok: true });
+  });
+
+  // POST /api/cookies  { profile, task_id, pattern, matched_url, cookie, timestamp }
+  router.post('/api/cookies', async (req, res) => {
+    const { task_id, profile, cookie } = req.body ?? {};
+    if (!task_id || !profile || !cookie) {
+      return res.status(400).json({ error: 'task_id, profile, cookie are required' });
+    }
+    try {
+      await taskStore.addCookie(String(task_id), req.body);
+      logger.info(`cookie collected task=${task_id} profile=${profile}`);
+      return res.json({ ok: true });
+    } catch (err) {
+      logger.error(`/api/cookies error: ${err.message}`);
+      return res.status(500).json({ error: 'internal error' });
+    }
+  });
+
+  // GET /api/cookies/:task_id
+  router.get('/api/cookies/:task_id', async (req, res) => {
+    try {
+      const cookies = await taskStore.getCookies(req.params.task_id);
+      return res.json(cookies);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
   });
 

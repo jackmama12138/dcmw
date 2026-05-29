@@ -1,5 +1,7 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 
+const fs = require('fs');
+const path = require('path');
 const ChromePool = require('./chrome-pool');
 const GatewayClient = require('./ws-client');
 const { runTask } = require('./task-runner');
@@ -41,6 +43,23 @@ if (profileNames.length === 0) {
   logger.error('CHROME_PROFILE_NAME contains no valid profile names');
   process.exit(1);
 }
+
+// ─── pre-flight checks ────────────────────────────────────────────────────────
+
+if (!fs.existsSync(MAC_CHROME_PATH)) {
+  logger.error(`Chrome executable not found: ${MAC_CHROME_PATH}`);
+  process.exit(1);
+}
+
+const missingProfiles = profileNames.filter(
+  name => !fs.existsSync(path.join(CHROME_PROFILES_BASE_DIR, name))
+);
+if (missingProfiles.length > 0) {
+  logger.error(`Chrome profile directories not found: ${missingProfiles.join(', ')} (base: ${CHROME_PROFILES_BASE_DIR})`);
+  process.exit(1);
+}
+
+logger.info('Pre-flight checks passed');
 
 // ─── setup ────────────────────────────────────────────────────────────────────
 
