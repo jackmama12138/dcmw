@@ -46,6 +46,8 @@
             class="text-xs text-red-400 hover:text-red-300 transition-colors">停止</button>
           <button @click="$emit('view-cookies', t.task_id)"
             class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Cookie</button>
+          <button @click="$emit('view-screenshots', t.task_id)"
+            class="text-xs text-gray-400 hover:text-gray-200 transition-colors">截图</button>
         </div>
       </div>
     </div>
@@ -54,7 +56,7 @@
 
 <script setup>
 defineProps({ tasks: { type: Array, default: () => [] } });
-defineEmits(['stop', 'view-cookies']);
+defineEmits(['stop', 'view-cookies', 'view-screenshots']);
 
 function dotColor(s) {
   return { pending: 'bg-gray-500', running: 'bg-yellow-400 animate-pulse', done: 'bg-green-500' }[s] ?? 'bg-gray-500';

@@ -17,9 +17,10 @@
       <Dashboard    v-if="activeTab === 'dashboard'"  :workers="workers" @refresh="refresh" />
       <TaskSubmit   v-if="activeTab === 'submit'"     :workers="workers" @submitted="refresh" />
       <TemplateManager v-if="activeTab === 'templates'" />
-      <TaskList     v-if="activeTab === 'tasks'"      :tasks="tasks" @stop="stopTask" @view-cookies="openCookies" />
-      <CookieViewer   v-if="activeTab === 'cookies'"    :initial-task-id="cookieTaskId" />
-      <ActionsEditor  v-if="activeTab === 'actions'" />
+      <TaskList        v-if="activeTab === 'tasks'"       :tasks="tasks" @stop="stopTask" @view-cookies="openCookies" @view-screenshots="openScreenshots" />
+      <CookieViewer    v-if="activeTab === 'cookies'"     :initial-task-id="cookieTaskId" />
+      <ScreenshotViewer v-if="activeTab === 'screenshots'" :initial-task-id="screenshotTaskId" />
+      <ActionsEditor   v-if="activeTab === 'actions'" />
     </div>
   </div>
 </template>
@@ -30,8 +31,9 @@ import Dashboard      from './components/Dashboard.vue';
 import TaskSubmit     from './components/TaskSubmit.vue';
 import TemplateManager from './components/TemplateManager.vue';
 import TaskList       from './components/TaskList.vue';
-import CookieViewer   from './components/CookieViewer.vue';
-import ActionsEditor  from './components/ActionsEditor.vue';
+import CookieViewer      from './components/CookieViewer.vue';
+import ScreenshotViewer  from './components/ScreenshotViewer.vue';
+import ActionsEditor     from './components/ActionsEditor.vue';
 import { fetchTasks, fetchWorkers, stopTask as apiStop } from './api.js';
 
 const TABS = [
@@ -39,14 +41,16 @@ const TABS = [
   { id: 'submit',     label: '发布任务' },
   { id: 'templates',  label: '任务编排' },
   { id: 'tasks',      label: '任务列表' },
-  { id: 'cookies',    label: 'Cookie 采集' },
-  { id: 'actions',    label: 'Actions 编辑' },
+  { id: 'cookies',      label: 'Cookie 采集' },
+  { id: 'screenshots',  label: '截图查看' },
+  { id: 'actions',      label: 'Actions 编辑' },
 ];
 
-const activeTab   = ref('dashboard');
-const tasks       = ref([]);
-const workers     = ref([]);
-const cookieTaskId = ref('');
+const activeTab        = ref('dashboard');
+const tasks            = ref([]);
+const workers          = ref([]);
+const cookieTaskId     = ref('');
+const screenshotTaskId = ref('');
 
 async function refresh() {
   [tasks.value, workers.value] = await Promise.all([
@@ -62,6 +66,11 @@ async function stopTask(taskId) {
 function openCookies(taskId) {
   cookieTaskId.value = taskId;
   activeTab.value = 'cookies';
+}
+
+function openScreenshots(taskId) {
+  screenshotTaskId.value = taskId;
+  activeTab.value = 'screenshots';
 }
 
 let timer;

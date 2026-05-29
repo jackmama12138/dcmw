@@ -1,12 +1,24 @@
 const { Router } = require('express');
 const vm = require('vm');
+const fs = require('fs');
+const path = require('path');
 const logger = require('./logger');
+
+const SCREENSHOTS_DIR = path.resolve(__dirname, '../data/screenshots');
+const MAX_SHOTS_PER_PROFILE = Number(process.env.MAX_SCREENSHOTS_PER_PROFILE) || 20;
+
+// Reject taskId/profile strings that could escape the screenshots directory.
+function safeName(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const cleaned = path.basename(raw).replace(/[^a-zA-Z0-9_\-]/g, '_');
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 const VALID_ACTION_TYPES = new Set([
   'navigate','open','goto','reload',
   'wait','dwell',
-  'click','dblclick','hover','scroll','mousemove','mousedown','mouseup',
-  'rtcookie',
+  'click','dblclick','hover','fill','scroll','mousemove','mousedown','mouseup',
+  'rtcookie','screenshot',
   'eval','run-code',
   'close',
 ]);
@@ -357,6 +369,81 @@ function createRouter({ taskStore, registry, scheduler }) {
     try {
       const cookies = await taskStore.getCookies(req.params.task_id);
       return res.json(cookies);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── screenshots ─────────────────────────────────────────────────────────
+
+  // POST /api/screenshots  body: raw JPEG binary
+  // Headers: X-Task-Id, X-Profile, X-Timestamp
+  router.post('/api/screenshots', (req, res) => {
+    const taskId  = safeName(req.headers['x-task-id']);
+    const profile = safeName(req.headers['x-profile']);
+    const ts      = parseInt(req.headers['x-timestamp']) || Date.now();
+
+    if (!taskId || !profile) {
+      return res.status(400).json({ error: 'X-Task-Id and X-Profile headers are required' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'binary JPEG body is required' });
+    }
+
+    const taskDir = path.join(SCREENSHOTS_DIR, taskId);
+    try {
+      fs.mkdirSync(taskDir, { recursive: true });
+    } catch (err) {
+      logger.error(`screenshot mkdir: ${err.message}`);
+      return res.status(500).json({ error: 'internal error' });
+    }
+
+    // Enforce per-profile cap: delete oldest files for this profile if over limit.
+    try {
+      const existing = fs.readdirSync(taskDir)
+        .filter(f => f.startsWith(`${profile}_`) && f.endsWith('.jpg'))
+        .sort();
+      if (existing.length >= MAX_SHOTS_PER_PROFILE) {
+        existing.slice(0, existing.length - MAX_SHOTS_PER_PROFILE + 1).forEach(f => {
+          try { fs.unlinkSync(path.join(taskDir, f)); } catch {}
+        });
+      }
+    } catch {}
+
+    const filename = `${profile}_${ts}.jpg`;
+    const filepath = path.join(taskDir, filename);
+    try {
+      fs.writeFileSync(filepath, req.body);
+    } catch (err) {
+      logger.error(`screenshot write: ${err.message}`);
+      return res.status(500).json({ error: 'internal error' });
+    }
+
+    logger.info(`screenshot saved: ${taskId}/${filename}`);
+    return res.json({ ok: true, path: `/data/screenshots/${taskId}/${filename}` });
+  });
+
+  // GET /api/screenshots/:task_id — list screenshot URLs for a task
+  router.get('/api/screenshots/:task_id', (req, res) => {
+    const taskId = safeName(req.params.task_id);
+    if (!taskId) return res.status(400).json({ error: 'invalid task_id' });
+
+    const taskDir = path.join(SCREENSHOTS_DIR, taskId);
+    if (!fs.existsSync(taskDir)) return res.json([]);
+
+    try {
+      const files = fs.readdirSync(taskDir)
+        .filter(f => f.endsWith('.jpg'))
+        .sort()
+        .map(f => {
+          const [profileRaw, tsRaw] = f.replace('.jpg', '').split('_');
+          return {
+            profile: profileRaw,
+            timestamp: parseInt(tsRaw) || 0,
+            url: `/data/screenshots/${taskId}/${f}`,
+          };
+        });
+      return res.json(files);
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

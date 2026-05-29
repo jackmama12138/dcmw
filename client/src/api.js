@@ -100,3 +100,8 @@ export async function fetchCookies(taskId) {
   const { data } = await http.get(`/api/cookies/${taskId}`);
   return data;
 }
+
+export async function fetchScreenshots(taskId) {
+  const { data } = await http.get(`/api/screenshots/${taskId}`);
+  return data;
+}

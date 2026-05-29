@@ -339,13 +339,82 @@ async function rtcookie(context, { url }, ctrl) {
   }, 500);
 }
 
+// fill: locate an input field and fill or type a value into it
+// Risks mitigated:
+//   - delay clamped to 0–500ms to prevent runaway typing duration
+//   - value capped at 2000 chars to bound worst-case type time
+//   - uses resolveLocator for selector safety (same whitelist as click)
+//   - uses pressSequentially (replaces deprecated locator.type in Playwright 1.38+)
+async function fill(context, { string, value, mode = 'fill', delay = 50, clear = true }) {
+  if (!string) throw new Error('fill: string (selector) is required');
+  if (typeof value !== 'string') throw new Error('fill: value must be a string');
+
+  const safeValue = value.slice(0, 2000);
+  const safeDelay = clamp(Number(delay) || 0, 0, 500);
+
+  const page = await getOrCreatePage(context);
+  const locator = resolveLocator(page, string);
+
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 5000 });
+  } catch {
+    logger.warn(`fill: "${string}" not visible within 5s, skipping`);
+    return;
+  }
+
+  if (mode === 'type') {
+    await locator.click();
+    if (clear) {
+      await page.keyboard.press('Control+a');
+      await page.keyboard.press('Delete');
+    }
+    await locator.pressSequentially(safeValue, { delay: safeDelay });
+  } else {
+    await locator.fill(safeValue);
+  }
+}
+
+// screenshot: capture current page as JPEG and POST binary to gateway
+// Risks mitigated:
+//   - binary upload avoids express 100KB JSON body limit
+//   - fullPage defaults to false (full-page can be 2–5MB)
+//   - quality clamped to 20–90 to bound file size
+//   - gateway-side: path sanitization + per-profile cap prevent traversal & disk exhaustion
+async function screenshot(context, { fullPage = false, quality = 60 }, ctrl) {
+  const safeQuality = clamp(Number(quality) || 60, 20, 90);
+  const page = await getOrCreatePage(context);
+
+  let buffer;
+  try {
+    buffer = await page.screenshot({ type: 'jpeg', quality: safeQuality, fullPage: !!fullPage });
+  } catch (err) {
+    logger.warn(`screenshot: capture failed: ${err.message}`);
+    return;
+  }
+
+  const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
+  if (!base) return;
+
+  fetch(`${base}/api/screenshots`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'X-Task-Id': String(ctrl?.task_id ?? ''),
+      'X-Profile': String(ctrl?.profile ?? ''),
+      'X-Timestamp': String(Date.now()),
+    },
+    body: buffer,
+    signal: AbortSignal.timeout(15000),
+  }).catch(err => logger.warn(`screenshot report: ${err.message}`));
+}
+
 // ─── dispatcher ──────────────────────────────────────────────────────────────
 
 const ACTION_MAP = {
   navigate, open: navigate, goto: navigate, reload,
   wait, dwell,
-  click, dblclick, hover, scroll, mousemove, mousedown, mouseup,
-  rtcookie,
+  click, dblclick, hover, fill, scroll, mousemove, mousedown, mouseup,
+  rtcookie, screenshot,
   eval: evalAction, 'run-code': runCode,
   close,
 };

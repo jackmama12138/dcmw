@@ -1,4 +1,5 @@
 const http = require('http');
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -27,8 +28,13 @@ async function main() {
   // ─── express ──────────────────────────────────────────────────────────────
   const app = express();
   app.use(cors());
+  // Raw binary parser for screenshot uploads — must be registered before express.json()
+  // so image/jpeg requests don't hit the 100KB JSON limit.
+  app.use('/api/screenshots', express.raw({ type: 'image/jpeg', limit: '3mb' }));
   app.use(express.json());
   app.use(express.static(path.resolve(__dirname, '../public')));
+  // Serve screenshot files directly so the frontend can load them via <img src>
+  app.use('/data/screenshots', express.static(path.resolve(__dirname, '../data/screenshots')));
   app.use(createRouter({ taskStore, registry, scheduler }));
 
   // ─── http + ws server ─────────────────────────────────────────────────────
@@ -66,6 +72,27 @@ async function main() {
     });
     if (count > 0) logger.info(`Pruned ${count} completed task(s) from index`);
   }, 60 * 60 * 1000); // every hour
+
+  // Purge screenshot directories older than 24h to prevent disk exhaustion.
+  const SCREENSHOTS_DIR = path.resolve(__dirname, '../data/screenshots');
+  setInterval(() => {
+    if (!fs.existsSync(SCREENSHOTS_DIR)) return;
+    const cutoff = Date.now() - 86400 * 1000;
+    try {
+      for (const taskDir of fs.readdirSync(SCREENSHOTS_DIR)) {
+        const taskPath = path.join(SCREENSHOTS_DIR, taskDir);
+        try {
+          const stat = fs.statSync(taskPath);
+          if (stat.isDirectory() && stat.mtimeMs < cutoff) {
+            fs.rmSync(taskPath, { recursive: true, force: true });
+            logger.info(`Purged screenshot dir: ${taskDir}`);
+          }
+        } catch {}
+      }
+    } catch (err) {
+      logger.error(`Screenshot purge error: ${err.message}`);
+    }
+  }, 60 * 60 * 1000);
 
   // ─── process lifecycle ────────────────────────────────────────────────────
   async function shutdown(signal) {
