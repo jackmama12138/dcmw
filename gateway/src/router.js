@@ -107,6 +107,40 @@ function createRouter({ taskStore, registry, scheduler }) {
     return res.status(201).json({ ok: true, task });
   });
 
+  // ─── Worker / Node level control ─────────────────────────────────────────
+
+  // POST /api/workers/:worker_id/stop — stop all busy nodes on a worker
+  router.post('/api/workers/:worker_id/stop', async (req, res) => {
+    const { worker_id } = req.params;
+    if (!registry.workers.has(worker_id)) {
+      return res.status(404).json({ error: 'worker not found' });
+    }
+    const busySlots = registry.getBusySlots(worker_id);
+    const taskIds = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
+    await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+    for (const { profileName, taskId } of busySlots) {
+      registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
+    }
+    logger.info(`stop-worker [${worker_id}]: stopped ${busySlots.length} node(s)`);
+    return res.json({ ok: true, stopped: busySlots.length });
+  });
+
+  // POST /api/workers/:worker_id/nodes/:profile/stop — stop a single node
+  router.post('/api/workers/:worker_id/nodes/:profile/stop', async (req, res) => {
+    const { worker_id, profile } = req.params;
+    const w = registry.workers.get(worker_id);
+    if (!w) return res.status(404).json({ error: 'worker not found' });
+    const slot = w.profiles.get(profile);
+    if (!slot) return res.status(404).json({ error: 'profile not found' });
+    if (slot.state !== 'busy') return res.status(400).json({ error: 'node is not busy' });
+    if (slot.taskId) {
+      await taskStore.atomicForceComplete(String(slot.taskId));
+    }
+    registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
+    logger.info(`stop-node [${worker_id}:${profile}]`);
+    return res.json({ ok: true });
+  });
+
   // ─── URL-level control APIs ───────────────────────────────────────────────
 
   // GET /api/tasks/by-url?url=https://...

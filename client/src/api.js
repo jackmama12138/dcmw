@@ -45,6 +45,21 @@ export async function deleteTemplate(name) {
   return data;
 }
 
+export async function stopWorker(workerId) {
+  const { data } = await http.post(`/api/workers/${encodeURIComponent(workerId)}/stop`);
+  return data;
+}
+
+export async function stopNode(workerId, profile) {
+  const { data } = await http.post(`/api/workers/${encodeURIComponent(workerId)}/nodes/${encodeURIComponent(profile)}/stop`);
+  return data;
+}
+
+export async function stopByUrl(targetUrl) {
+  const { data } = await http.post('/api/tasks/stop-by-url', { target_url: targetUrl });
+  return data;
+}
+
 // ─── cookies ──────────────────────────────────────────────────────────────────
 
 export async function fetchCookies(taskId) {
