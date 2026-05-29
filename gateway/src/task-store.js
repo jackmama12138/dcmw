@@ -273,12 +273,11 @@ class TaskStore {
   // On gateway restart: reset in-flight counts so tasks can be re-dispatched
   async resetRunning() {
     const ids = await this.redis.zrange('tasks:index', 0, -1);
-    const pipeline = this.redis.pipeline();
     for (const id of ids) {
       const task = await this.get(id);
       if (!task) continue;
       if (task.status !== 'done') {
-        pipeline.zadd('tasks:active', task.created_at, id);
+        await this.redis.zadd('tasks:active', task.created_at, id);
       }
       if (task.running === 0) continue;
       await this.update(id, {
@@ -286,7 +285,6 @@ class TaskStore {
         status: task.completed + task.failed > 0 ? 'running' : 'pending',
       });
     }
-    await pipeline.exec();
   }
 
   // Fix ⑨: remove done tasks older than maxAgeSec from the sorted index
@@ -300,6 +298,8 @@ class TaskStore {
       const task = await this.get(id);
       if (!task || task.status !== 'done') continue;
       await this.redis.zrem('tasks:index', id);
+      await this.redis.zrem('tasks:active', id);
+      await this.redis.del(`task:${id}`);
       pruned++;
     }
     return pruned;

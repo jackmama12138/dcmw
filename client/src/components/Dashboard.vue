@@ -2,7 +2,7 @@
   <div class="space-y-4">
 
     <!-- stats bar -->
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-4 gap-3">
       <div class="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
         <div class="text-2xl font-bold text-green-400">{{ onlineWorkers }}</div>
         <div class="text-xs text-gray-500 mt-0.5">Worker 在线</div>
@@ -14,6 +14,26 @@
       <div class="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
         <div class="text-2xl font-bold text-gray-300">{{ idleNodes }}</div>
         <div class="text-xs text-gray-500 mt-0.5">节点空闲</div>
+      </div>
+      <!-- scheduler mode toggle -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 flex flex-col justify-between">
+        <div class="text-xs text-gray-500">调度模式</div>
+        <div class="flex gap-1 mt-2">
+          <button @click="setMode('sequential')"
+            :class="['flex-1 text-xs px-2 py-1 rounded-lg transition-colors',
+              dispatchMode === 'sequential'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700']">
+            顺序
+          </button>
+          <button @click="setMode('random')"
+            :class="['flex-1 text-xs px-2 py-1 rounded-lg transition-colors',
+              dispatchMode === 'random'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700']">
+            随机
+          </button>
+        </div>
       </div>
     </div>
 
@@ -31,10 +51,24 @@
             <div class="text-sm text-indigo-300 truncate font-mono" :title="group.url">{{ group.url }}</div>
             <div class="text-xs text-gray-600 mt-0.5">{{ group.nodes.length }} 个节点</div>
           </div>
-          <button @click="stopUrl(group.url)"
-            class="flex-shrink-0 text-xs bg-red-900 hover:bg-red-800 text-red-300 px-3 py-1.5 rounded-lg transition-colors">
-            停止全部
-          </button>
+          <!-- adjust time + stop -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="flex items-center gap-1">
+              <span class="text-xs text-gray-600">调整时间</span>
+              <button @click="adjust(group.url, -600)"
+                class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded-lg transition-colors">-10m</button>
+              <button @click="adjust(group.url, -60)"
+                class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded-lg transition-colors">-1m</button>
+              <button @click="adjust(group.url, 60)"
+                class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded-lg transition-colors">+1m</button>
+              <button @click="adjust(group.url, 600)"
+                class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded-lg transition-colors">+10m</button>
+            </div>
+            <button @click="stopUrl(group.url)"
+              class="text-xs bg-red-900 hover:bg-red-800 text-red-300 px-3 py-1.5 rounded-lg transition-colors">
+              停止全部
+            </button>
+          </div>
         </div>
         <!-- nodes grouped by worker -->
         <div v-for="(nodes, wid) in groupByWorker(group.nodes)" :key="wid" class="mb-2 last:mb-0">
@@ -90,11 +124,20 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { stopByUrl, stopWorker as apiStopWorker, stopNode as apiStopNode } from '../api.js';
+import { ref, computed, onMounted } from 'vue';
+import { stopByUrl, stopWorker as apiStopWorker, stopNode as apiStopNode, adjustTime, fetchSchedulerConfig, setSchedulerConfig } from '../api.js';
 
 const props = defineProps({ workers: { type: Array, default: () => [] } });
 const emit = defineEmits(['refresh']);
+
+const dispatchMode = ref('sequential');
+
+onMounted(async () => {
+  try {
+    const cfg = await fetchSchedulerConfig();
+    dispatchMode.value = cfg.dispatch_mode;
+  } catch {}
+});
 
 const onlineWorkers = computed(() => props.workers.filter(w => w.connected).length);
 const busyNodes = computed(() => props.workers.reduce((s, w) => s + w.slots.busy, 0));
@@ -133,6 +176,17 @@ function profileStyle(state) {
 function shortUrl(url) {
   if (!url) return '';
   try { return new URL(url).pathname.split('/').filter(Boolean).pop() || url; } catch { return url; }
+}
+
+async function setMode(mode) {
+  try {
+    await setSchedulerConfig(mode);
+    dispatchMode.value = mode;
+  } catch (err) { alert(err.message); }
+}
+
+async function adjust(url, delta) {
+  try { await adjustTime(url, delta); emit('refresh'); } catch (err) { alert(err.message); }
 }
 
 async function stopUrl(url) {

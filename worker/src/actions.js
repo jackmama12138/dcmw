@@ -116,12 +116,13 @@ async function wait(_context, params, ctrl) {
 }
 
 async function dwell(_context, _params, ctrl) {
+  const maxSec = Math.max(1, Number(process.env.DWELL_MAX_SECONDS) || 72000);
   const start = Date.now();
   await new Promise(resolve => {
     const tick = () => {
       if (!ctrl || ctrl.stopped) return resolve();
       const elapsed = (Date.now() - start) / 1000;
-      if (elapsed >= ctrl.task_time) return resolve();
+      if (elapsed >= Math.min(ctrl.task_time, maxSec)) return resolve();
       setTimeout(tick, 500);
     };
     tick();
@@ -324,6 +325,15 @@ async function rtcookie(context, { url }, ctrl) {
   };
 
   await page.route(pattern, handler);
+
+  // If task is stopped before the route ever fires, unregister to avoid leaking
+  // the handler into subsequent tasks running on the same page.
+  const stopPoller = setInterval(() => {
+    if (captured || ctrl?.stopped) {
+      clearInterval(stopPoller);
+      if (!captured) page.unroute(pattern, handler).catch(() => {});
+    }
+  }, 500);
 }
 
 // ─── dispatcher ──────────────────────────────────────────────────────────────

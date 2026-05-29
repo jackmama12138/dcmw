@@ -60,6 +60,35 @@ export async function stopByUrl(targetUrl) {
   return data;
 }
 
+export async function adjustTime(targetUrl, delta) {
+  const { data } = await http.post('/api/tasks/adjust-time', { target_url: targetUrl, delta });
+  return data;
+}
+
+// ─── scheduler ────────────────────────────────────────────────────────────────
+
+export async function fetchSchedulerConfig() {
+  const { data } = await http.get('/api/scheduler/config');
+  return data;
+}
+
+export async function setSchedulerConfig(dispatch_mode) {
+  const { data } = await http.post('/api/scheduler/config', { dispatch_mode });
+  return data;
+}
+
+// ─── actions code ─────────────────────────────────────────────────────────────
+
+export async function fetchActionsCode() {
+  const { data } = await http.get('/api/actions');
+  return data;
+}
+
+export async function saveActionsCode(code) {
+  const { data } = await http.post('/api/actions', { code });
+  return data;
+}
+
 // ─── cookies ──────────────────────────────────────────────────────────────────
 
 export async function fetchCookies(taskId) {

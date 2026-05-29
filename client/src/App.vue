@@ -18,7 +18,8 @@
       <TaskSubmit   v-if="activeTab === 'submit'"     @submitted="refresh" />
       <TemplateManager v-if="activeTab === 'templates'" />
       <TaskList     v-if="activeTab === 'tasks'"      :tasks="tasks" @stop="stopTask" @view-cookies="openCookies" />
-      <CookieViewer v-if="activeTab === 'cookies'"    :initial-task-id="cookieTaskId" />
+      <CookieViewer   v-if="activeTab === 'cookies'"    :initial-task-id="cookieTaskId" />
+      <ActionsEditor  v-if="activeTab === 'actions'" />
     </div>
   </div>
 </template>
@@ -30,6 +31,7 @@ import TaskSubmit     from './components/TaskSubmit.vue';
 import TemplateManager from './components/TemplateManager.vue';
 import TaskList       from './components/TaskList.vue';
 import CookieViewer   from './components/CookieViewer.vue';
+import ActionsEditor  from './components/ActionsEditor.vue';
 import { fetchTasks, fetchWorkers, stopTask as apiStop } from './api.js';
 
 const TABS = [
@@ -38,6 +40,7 @@ const TABS = [
   { id: 'templates',  label: '任务编排' },
   { id: 'tasks',      label: '任务列表' },
   { id: 'cookies',    label: 'Cookie 采集' },
+  { id: 'actions',    label: 'Actions 编辑' },
 ];
 
 const activeTab   = ref('dashboard');
