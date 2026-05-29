@@ -281,10 +281,21 @@ async function rtcookie(context, { url }, ctrl) {
   const handler = async (route) => {
     try {
       if (!captured) {
-        const cookie = route.request().headers()['cookie'] || '';
+        const request = route.request();
+        const headers = request.headers();
+        const cookie = headers['cookie'] || '';
         if (cookie) {
           captured = true;
           page.unroute(pattern, handler).catch(() => {});
+
+          // Extract query params from the matched URL
+          let device_id = '';
+          let user_unique_id = '';
+          try {
+            const u = new URL(request.url());
+            device_id = u.searchParams.get('device_id') || '';
+            user_unique_id = u.searchParams.get('user_unique_id') || '';
+          } catch {}
 
           const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
           if (base) {
@@ -295,8 +306,11 @@ async function rtcookie(context, { url }, ctrl) {
                 profile: ctrl?.profile,
                 task_id: ctrl?.task_id,
                 pattern: url,
-                matched_url: route.request().url(),
+                matched_url: request.url(),
                 cookie,
+                device_id,
+                user_unique_id,
+                user_agent: headers['user-agent'] || '',
                 timestamp: Date.now(),
               }),
               signal: AbortSignal.timeout(5000),

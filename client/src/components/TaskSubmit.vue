@@ -159,7 +159,12 @@ async function submit() {
     msg.value = '任务已发布';
     emit('submitted');
   } catch (err) {
-    msg.value = err.response?.data?.error ?? err.message;
+    const data = err.response?.data;
+    if (data?.available !== undefined) {
+      msg.value = `${data.error}，可将 count 调整为 ${data.available}`;
+    } else {
+      msg.value = data?.error ?? err.message;
+    }
     isError.value = true;
   } finally {
     submitting.value = false;

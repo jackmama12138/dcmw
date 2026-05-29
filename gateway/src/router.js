@@ -72,6 +72,25 @@ function createRouter({ taskStore, registry, scheduler }) {
       return res.status(400).json({ error: pipelineError });
     }
 
+    // Check count vs available idle slots
+    const count = Math.max(1, Number(body.count) || 1);
+    const idleSlots = registry.getIdleSlots();
+    let available;
+    if (body.target_node) {
+      const { worker_id, profile } = body.target_node;
+      available = idleSlots.filter(s => s.workerId === worker_id && s.profileName === profile).length;
+    } else if (body.target_worker_id) {
+      available = idleSlots.filter(s => s.workerId === body.target_worker_id).length;
+    } else {
+      available = idleSlots.length;
+    }
+    if (count > available) {
+      return res.status(409).json({
+        error: `count (${count}) 超过当前可用节点数 (${available})`,
+        available,
+      });
+    }
+
     let task;
     try {
       task = await taskStore.add({ ...body, task_id, pipeline, task_time });
