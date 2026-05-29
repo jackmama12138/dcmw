@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_SERVER_PUBLISH_URL ?? 'http://192.168.110.111:7777';
+const BASE_URL = import.meta.env.VITE_SERVER_PUBLISH_URL ?? 'http://192.168.2.103:7777';
 
 const http = axios.create({ baseURL: BASE_URL });
 
