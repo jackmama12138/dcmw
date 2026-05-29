@@ -89,6 +89,11 @@ export async function saveActionsCode(code) {
   return data;
 }
 
+export async function resetActionsCode() {
+  const { data } = await http.delete('/api/actions');
+  return data;
+}
+
 // ─── cookies ──────────────────────────────────────────────────────────────────
 
 export async function fetchCookies(taskId) {

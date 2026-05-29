@@ -172,11 +172,9 @@ function createRouter({ taskStore, registry, scheduler }) {
     if (!task) return res.status(404).json({ error: 'task not found' });
 
     // Also notify any in-flight slots on this task to stop immediately.
-    const slots = registry.getBusySlots();
-    for (const { workerId, profileName, taskId: tid } of slots) {
-      if (String(tid) === String(taskId)) {
-        registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
-      }
+    const allBusy = registry.getSlotsByTaskId(taskId);
+    for (const { workerId, profileName } of allBusy) {
+      registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
     }
 
     logger.info(`force-stop task ${taskId}`);
@@ -270,6 +268,18 @@ function createRouter({ taskStore, registry, scheduler }) {
       res.json({ code, has_custom: code !== null });
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // DELETE /api/actions — remove custom code, revert all workers to built-in actions.
+  router.delete('/api/actions', async (_req, res) => {
+    try {
+      await taskStore.setActionsCode(null);
+      registry.broadcast({ type: 'reload_actions', code: null });
+      logger.info(`Actions reset to built-in — broadcast to ${registry.workers.size} worker(s)`);
+      return res.json({ ok: true, notified: registry.workers.size });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
   });
 

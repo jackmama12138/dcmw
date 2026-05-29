@@ -43,6 +43,20 @@ class WorkerRegistry {
     this.workers.get(workerId)?.profiles.set(profileName, { state: 'idle', taskId: null, targetUrl: null });
   }
 
+  // Returns all busy slots running the given taskId across all workers.
+  getSlotsByTaskId(taskId) {
+    const tid = String(taskId);
+    const slots = [];
+    for (const [workerId, { profiles }] of this.workers) {
+      for (const [profileName, { state, taskId: slotTaskId }] of profiles) {
+        if (state === 'busy' && String(slotTaskId) === tid) {
+          slots.push({ workerId, profileName });
+        }
+      }
+    }
+    return slots;
+  }
+
   // Returns all busy slots whose targetUrl matches. Used for URL-level control APIs.
   getSlotsByUrl(targetUrl) {
     const slots = [];

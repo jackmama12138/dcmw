@@ -89,12 +89,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { submitTask, fetchTemplates, fetchWorkers } from '../api.js';
+import { submitTask, fetchTemplates } from '../api.js';
 
+const props = defineProps({ workers: { type: Array, default: () => [] } });
 const emit = defineEmits(['submitted']);
 
 const templates = ref([]);
-const workers = ref([]);
 const submitting = ref(false);
 const msg = ref('');
 const isError = ref(false);
@@ -113,12 +113,12 @@ const form = ref({
 });
 
 const selectedWorkerProfiles = computed(() => {
-  const w = workers.value.find(w => w.workerId === form.value.target_worker_id);
+  const w = props.workers.find(w => w.workerId === form.value.target_worker_id);
   return w?.profiles ?? [];
 });
 
 function fillAllSlots() {
-  const w = workers.value.find(w => w.workerId === form.value.target_worker_id);
+  const w = props.workers.find(w => w.workerId === form.value.target_worker_id);
   if (w) form.value.count = w.slots.total;
 }
 
@@ -171,12 +171,7 @@ async function submit() {
   }
 }
 
-async function load() {
-  [templates.value, workers.value] = await Promise.all([
-    fetchTemplates().catch(() => []),
-    fetchWorkers().catch(() => []),
-  ]);
-}
-
-onMounted(load);
+onMounted(async () => {
+  templates.value = await fetchTemplates().catch(() => []);
+});
 </script>

@@ -197,7 +197,9 @@ async function hover(context, params) {
 async function scroll(context, { x = 0, y = 300, selector = null }) {
   const page = await getOrCreatePage(context);
   if (selector) {
-    const el = await page.$(selector);
+    const locator = resolveLocator(page, selector);
+    let el;
+    try { el = await locator.elementHandle({ timeout: 5000 }); } catch { el = null; }
     if (!el) {
       logger.warn(`scroll: selector "${selector}" not found, skipping`);
       return;
@@ -260,8 +262,9 @@ async function runCode(context, { code }) {
   }
 }
 
-async function close(context) {
+async function close(context, _params, ctrl) {
   if (!context) return;
+  ctrl?.markReleasing();
   try {
     const pages = context.pages();
     await Promise.allSettled(pages.map(p => p.close()));

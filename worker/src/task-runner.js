@@ -33,7 +33,7 @@ async function httpNotify(profile, status, targetUrl, taskId) {
  * @param {object} opts  - { onComplete: (result) => Promise<void> }
  * @returns {{ stop: () => void, updateTaskTime: (s: number) => void }}
  */
-function runTask(context, task, { onComplete }) {
+function runTask(context, task, { onComplete, pool }) {
   const ctrl = {
     stopped: false,
     task_time: Math.max(0, Number(task.task_time) || 0),
@@ -41,6 +41,11 @@ function runTask(context, task, { onComplete }) {
     profile: task.profile,
     stop() { this.stopped = true; },
     updateTaskTime(seconds) { this.task_time = Math.max(0, seconds); },
+    // Called by the 'close' pipeline action so chrome-pool knows the close is intentional.
+    markReleasing() {
+      const slot = pool?.slots.get(task.profile);
+      if (slot) slot.releasing = true;
+    },
   };
 
   // If the browser context closes unexpectedly (Chrome crash / bot kill),

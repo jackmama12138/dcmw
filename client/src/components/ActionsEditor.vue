@@ -36,7 +36,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { fetchActionsCode, saveActionsCode } from '../api.js';
+import { fetchActionsCode, saveActionsCode, resetActionsCode } from '../api.js';
 
 const code = ref('');
 const hasCustom = ref(false);
@@ -73,9 +73,14 @@ async function save() {
 
 async function resetDefault() {
   if (!confirm('恢复默认 actions 代码？所有 Worker 将重新加载内置版本。')) return;
-  // Clearing custom code: send empty string — gateway treats it as "use built-in"
-  // For now just clear the local editor; a future API can support explicit reset.
-  code.value = '';
-  hasCustom.value = false;
+  try {
+    const res = await resetActionsCode();
+    code.value = '';
+    hasCustom.value = false;
+    successMsg.value = `已恢复内置版本，已通知 ${res.notified} 个 Worker`;
+    setTimeout(() => { successMsg.value = ''; }, 3000);
+  } catch (err) {
+    error.value = err.response?.data?.error ?? err.message;
+  }
 }
 </script>

@@ -15,7 +15,7 @@
 
     <div class="p-6">
       <Dashboard    v-if="activeTab === 'dashboard'"  :workers="workers" @refresh="refresh" />
-      <TaskSubmit   v-if="activeTab === 'submit'"     @submitted="refresh" />
+      <TaskSubmit   v-if="activeTab === 'submit'"     :workers="workers" @submitted="refresh" />
       <TemplateManager v-if="activeTab === 'templates'" />
       <TaskList     v-if="activeTab === 'tasks'"      :tasks="tasks" @stop="stopTask" @view-cookies="openCookies" />
       <CookieViewer   v-if="activeTab === 'cookies'"    :initial-task-id="cookieTaskId" />

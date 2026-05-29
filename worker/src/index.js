@@ -103,7 +103,11 @@ const client = new GatewayClient({
   },
 
   onReloadActions({ code }) {
-    actionsLoader.reload(code);
+    if (code) {
+      actionsLoader.reload(code);
+    } else {
+      actionsLoader.resetToBuiltin();
+    }
   },
 });
 
@@ -145,6 +149,7 @@ async function handleTask(task) {
 
   const key = taskKey(task_id, profile);
   const ctrl = runTask(context, task, {
+    pool,
     onComplete: async (result) => {
       runningTasks.delete(key);
       client.send({ type: 'task_result', ...result });

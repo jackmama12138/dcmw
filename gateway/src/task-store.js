@@ -234,7 +234,11 @@ class TaskStore {
   }
 
   async setActionsCode(code) {
-    await this.redis.set('actions:code', code);
+    if (code === null || code === undefined) {
+      await this.redis.del('actions:code');
+    } else {
+      await this.redis.set('actions:code', code);
+    }
   }
 
   // ─── cookie collection ────────────────────────────────────────────────────
