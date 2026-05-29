@@ -143,5 +143,8 @@ vite.config.ts.timestamp-*
 # IDE
 .idea/
 
+# Claude Code
+.claude/
+
 # logs directory
 logs/
