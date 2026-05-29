@@ -46,6 +46,7 @@ class TaskStore {
 
     await this.redis.set(`task:${taskId}`, JSON.stringify(task));
     await this.redis.zadd('tasks:index', now, taskId);
+    await this.redis.zadd('tasks:active', now, taskId);
     return task;
   }
 
@@ -88,6 +89,7 @@ class TaskStore {
         local total = t.completed + t.failed
         if total >= t.count then
           t.status = 'done'
+          redis.call('ZREM', KEYS[2], ARGV[3])
         else
           t.status = 'running'
         end
@@ -97,9 +99,10 @@ class TaskStore {
       return cjson.encode(t)
     `;
     const result = await this.redis.eval(
-      script, 1, `task:${taskId}`,
+      script, 2, `task:${taskId}`, 'tasks:active',
       isSuccess ? '1' : '0',
-      String(Date.now())
+      String(Date.now()),
+      String(taskId)
     );
     if (!result) return null;
     try { return JSON.parse(result); } catch { return null; }
@@ -175,10 +178,12 @@ class TaskStore {
       t.status = 'done'
       t.updated_at = tonumber(ARGV[1])
       redis.call('SET', KEYS[1], cjson.encode(t))
+      redis.call('ZREM', KEYS[2], ARGV[2])
       return cjson.encode(t)
     `;
     const result = await this.redis.eval(
-      script, 1, `task:${taskId}`, String(Date.now())
+      script, 2, `task:${taskId}`, 'tasks:active',
+      String(Date.now()), String(taskId)
     );
     if (!result) return null;
     try { return JSON.parse(result); } catch { return null; }
@@ -248,7 +253,7 @@ class TaskStore {
   // ─── queries ──────────────────────────────────────────────────────────────
 
   async getDispatchable() {
-    const ids = await this.redis.zrange('tasks:index', 0, 199);
+    const ids = await this.redis.zrange('tasks:active', 0, -1);
     if (ids.length === 0) return [];
     const tasks = await Promise.all(ids.map(id => this.get(id)));
     return tasks.filter(t => {
@@ -268,14 +273,20 @@ class TaskStore {
   // On gateway restart: reset in-flight counts so tasks can be re-dispatched
   async resetRunning() {
     const ids = await this.redis.zrange('tasks:index', 0, -1);
+    const pipeline = this.redis.pipeline();
     for (const id of ids) {
       const task = await this.get(id);
-      if (!task || task.running === 0) continue;
+      if (!task) continue;
+      if (task.status !== 'done') {
+        pipeline.zadd('tasks:active', task.created_at, id);
+      }
+      if (task.running === 0) continue;
       await this.update(id, {
         running: 0,
         status: task.completed + task.failed > 0 ? 'running' : 'pending',
       });
     }
+    await pipeline.exec();
   }
 
   // Fix ⑨: remove done tasks older than maxAgeSec from the sorted index
