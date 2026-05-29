@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
 
@@ -51,12 +52,17 @@ class ChromePool {
     slot.state = STATE.BUSY;
 
     const userDataDir = path.join(this.profilesBaseDir, profileName);
+    const winState = this._loadWindowState(profileName);
+    const winArgs = winState
+      ? [`--window-size=${winState.width},${winState.height}`, `--window-position=${winState.x},${winState.y}`]
+      : [];
 
     try {
       const context = await chromium.launchPersistentContext(userDataDir, {
         executablePath: this.chromePath,
         headless: false,
-        args: ['--no-first-run', '--no-default-browser-check'],
+        viewport: null,
+        args: ['--no-first-run', '--no-default-browser-check', ...winArgs],
       });
 
       // Fix ①: launchPersistentContext returns a BrowserContext, not a Browser.
@@ -85,6 +91,7 @@ class ChromePool {
     if (!slot) return;
 
     if (slot.context) {
+      await this._saveWindowState(profileName, slot.context);
       slot.releasing = true;
       try {
         const pages = slot.context.pages();
@@ -99,6 +106,36 @@ class ChromePool {
 
     slot.state = STATE.IDLE;
     logger.info(`[${profileName}] released → idle`);
+  }
+
+  _loadWindowState(profileName) {
+    try {
+      const p = path.join(this.profilesBaseDir, profileName, '.window-state.json');
+      if (!fs.existsSync(p)) return null;
+      const s = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (s.width > 100 && s.height > 100) return s;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async _saveWindowState(profileName, context) {
+    try {
+      const pages = context.pages();
+      if (!pages.length) return;
+      const state = await pages[0].evaluate(() => ({
+        x: window.screenX,
+        y: window.screenY,
+        width: window.outerWidth,
+        height: window.outerHeight,
+      }));
+      if (state.width <= 100 || state.height <= 100) return;
+      const p = path.join(this.profilesBaseDir, profileName, '.window-state.json');
+      fs.writeFileSync(p, JSON.stringify(state));
+    } catch (err) {
+      logger.warn(`[${profileName}] save window state: ${err.message}`);
+    }
   }
 
   async shutdown() {
