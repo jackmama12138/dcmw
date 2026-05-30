@@ -6,9 +6,9 @@ const RECONNECT_BASE_MS = 3_000;
 const RECONNECT_MAX_MS = 30_000;
 
 class GatewayClient {
-  constructor({ serverUrl, workerId, pool, onTask, onStop, onUpdateTime, onReloadActions }) {
-    if (!serverUrl) throw new Error('GatewayClient: serverUrl is required');
-    if (!workerId) throw new Error('GatewayClient: workerId is required');
+  constructor({ serverUrl, workerId, pool, onTask, onStop, onUpdateTime, onReloadActions, onRanklist, onScreenshot, getStatus }) {
+    if (!serverUrl) throw new Error('GatewayClient: serverUrl 是必填项');
+    if (!workerId) throw new Error('GatewayClient: workerId 是必填项');
 
     this.serverUrl = serverUrl;
     this.workerId = workerId;
@@ -17,24 +17,30 @@ class GatewayClient {
     this.onStop = onStop ?? (() => {});
     this.onUpdateTime = onUpdateTime ?? (() => {});
     this.onReloadActions = onReloadActions ?? (() => {});
+    this.onRanklist      = onRanklist      ?? (() => {});
+    this.onScreenshot    = onScreenshot    ?? (() => {});
+    this.getStatus       = getStatus       ?? (() => ({})); // 返回当前所有运行中任务的状态
 
     this.ws = null;
     this.heartbeatTimer = null;
+    // 修复：持有重连定时器句柄，destroy() 时可取消待执行的重连
+    this.reconnectTimer = null;
     this.reconnectAttempts = 0;
     this.destroyed = false;
   }
 
+  // 建立到 gateway 的 WebSocket 连接
   connect() {
     if (this.destroyed) return;
 
     const url = `${this.serverUrl}?worker_id=${encodeURIComponent(this.workerId)}`;
-    logger.info(`Connecting to gateway: ${url}`);
+    logger.info(`正在连接 gateway: ${url}`);
 
     let ws;
     try {
       ws = new WebSocket(url);
     } catch (err) {
-      logger.error(`Failed to create WebSocket: ${err.message}`);
+      logger.error(`创建 WebSocket 失败: ${err.message}`);
       this._scheduleReconnect();
       return;
     }
@@ -42,7 +48,7 @@ class GatewayClient {
     this.ws = ws;
 
     ws.on('open', () => {
-      logger.info('Gateway connected');
+      logger.info('已连接到 gateway');
       this.reconnectAttempts = 0;
       this._register();
       this._startHeartbeat();
@@ -53,47 +59,55 @@ class GatewayClient {
       try {
         msg = JSON.parse(data);
       } catch {
-        logger.warn(`Received non-JSON from gateway: ${String(data).slice(0, 200)}`);
+        logger.warn(`收到来自 gateway 的非 JSON 消息: ${String(data).slice(0, 200)}`);
         return;
       }
       this._dispatch(msg);
     });
 
     ws.on('close', (code, reason) => {
-      logger.warn(`Gateway disconnected [${code}] ${reason ?? ''}`);
+      logger.warn(`与 gateway 断开连接 [${code}] ${reason ?? ''}`);
       this._stopHeartbeat();
       if (!this.destroyed) this._scheduleReconnect();
     });
 
     ws.on('error', (err) => {
-      // 'close' fires after 'error', reconnect happens there
-      logger.error(`Gateway WS error: ${err.message}`);
+      // 'close' 事件会在 'error' 后触发，重连逻辑在 close 处理
+      logger.error(`gateway WebSocket 错误: ${err.message}`);
     });
   }
 
+  // 向 gateway 发送 JSON 消息
   send(data) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      logger.warn(`Cannot send (ws not open): ${data?.type}`);
+      logger.warn(`无法发送（WebSocket 未就绪）: ${data?.type}`);
       return;
     }
     try {
       this.ws.send(JSON.stringify(data));
     } catch (err) {
-      logger.error(`Send failed: ${err.message}`);
+      logger.error(`发送失败: ${err.message}`);
     }
   }
 
+  // 销毁客户端，取消所有定时器并关闭连接
   destroy() {
     this.destroyed = true;
     this._stopHeartbeat();
+    // 取消待执行的重连，防止 destroy 后仍触发 connect()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
   }
 
-  // ─── private ─────────────────────────────────────────────────────────────
+  // ─── 私有方法 ─────────────────────────────────────────────────────────────
 
+  // 向 gateway 发送注册消息
   _register() {
     this.send({
       type: 'register',
@@ -103,6 +117,7 @@ class GatewayClient {
     });
   }
 
+  // 启动心跳定时器，定期上报槽位状态、当前页面信息及运行中任务映射
   _startHeartbeat() {
     this._stopHeartbeat();
     let running = false;
@@ -110,11 +125,20 @@ class GatewayClient {
       if (running || this.destroyed) return;
       running = true;
       try {
-        const profiles = await this.pool.getActivePageInfo().catch(() => ({}));
+        const pageProfiles  = await this.pool.getActivePageInfo().catch(() => ({}));
+        const statusProfiles = this.getStatus(); // { Profile1: { task_id, target_url, state } }
+
+        // 合并页面信息与任务状态，gateway 重启后可凭此恢复映射
+        const profiles = {};
+        const allKeys = new Set([...Object.keys(pageProfiles), ...Object.keys(statusProfiles)]);
+        for (const k of allKeys) {
+          profiles[k] = { ...(pageProfiles[k] ?? {}), ...(statusProfiles[k] ?? {}) };
+        }
+
         this.send({
-          type: 'heartbeat',
+          type     : 'heartbeat',
           worker_id: this.workerId,
-          slots: this.pool.stats(),
+          slots    : this.pool.stats(),
           profiles,
         });
       } finally {
@@ -124,6 +148,7 @@ class GatewayClient {
     this.heartbeatTimer = setInterval(beat, HEARTBEAT_MS);
   }
 
+  // 停止心跳定时器
   _stopHeartbeat() {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
@@ -131,46 +156,59 @@ class GatewayClient {
     }
   }
 
+  // 使用指数退避调度重连，并保存定时器句柄以便取消
   _scheduleReconnect() {
     const delay = Math.min(
       RECONNECT_BASE_MS * 2 ** this.reconnectAttempts,
       RECONNECT_MAX_MS
     );
     this.reconnectAttempts++;
-    logger.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    setTimeout(() => this.connect(), delay);
+    logger.info(`将在 ${delay}ms 后重连（第 ${this.reconnectAttempts} 次尝试）`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
+  // 根据消息类型分发到对应处理逻辑
   _dispatch(msg) {
     if (!msg || typeof msg !== 'object') {
-      logger.warn('Received malformed message (not an object)');
+      logger.warn('收到格式错误的消息（非对象）');
       return;
     }
     if (!msg.type) {
-      logger.warn('Received message without "type" field');
+      logger.warn('收到缺少 "type" 字段的消息');
       return;
     }
 
     switch (msg.type) {
       case 'task':
         this.onTask(msg).catch(err =>
-          logger.error(`onTask error: ${err.message}`)
+          logger.error(`onTask 错误: ${err.message}`)
         );
         break;
 
       case 'stop_task':
-        logger.info(`Received stop_task: task=${msg.task_id} profile=${msg.profile}`);
+        logger.info(`收到 stop_task: task=${msg.task_id} profile=${msg.profile}`);
         this.onStop(msg);
         break;
 
       case 'update_task_time':
-        logger.info(`Received update_task_time: task=${msg.task_id} profile=${msg.profile} task_time=${msg.task_time}`);
+        logger.info(`收到 update_task_time: task=${msg.task_id} profile=${msg.profile} task_time=${msg.task_time}`);
         this.onUpdateTime(msg);
         break;
 
       case 'reload_actions':
-        logger.info('Received reload_actions from gateway');
+        logger.info('收到来自 gateway 的 reload_actions');
         this.onReloadActions(msg);
+        break;
+
+      case 'run_ranklist':
+        this.onRanklist(msg).catch(() => {});
+        break;
+
+      case 'run_screenshot':
+        this.onScreenshot(msg).catch(() => {});
         break;
 
       case 'ping':
@@ -178,7 +216,7 @@ class GatewayClient {
         break;
 
       default:
-        logger.warn(`Unknown message type: "${msg.type}"`);
+        logger.warn(`未知消息类型: "${msg.type}"`);
     }
   }
 }

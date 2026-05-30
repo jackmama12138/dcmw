@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_SERVER_PUBLISH_URL ?? 'http://192.168.2.103:7777';
-
-const http = axios.create({ baseURL: BASE_URL });
+const http = axios.create({ baseURL: import.meta.env.VITE_SERVER_PUBLISH_URL ?? '' });
 
 // ─── tasks ────────────────────────────────────────────────────────────────────
 
@@ -96,12 +94,36 @@ export async function resetActionsCode() {
 
 // ─── cookies ──────────────────────────────────────────────────────────────────
 
-export async function fetchCookies(taskId) {
-  const { data } = await http.get(`/api/cookies/${taskId}`);
+export async function fetchCookies() {
+  const { data } = await http.get('/api/cookies');
   return data;
 }
 
-export async function fetchScreenshots(taskId) {
-  const { data } = await http.get(`/api/screenshots/${taskId}`);
+export async function fetchScreenshots() {
+  const { data } = await http.get('/api/screenshots');
+  return data;
+}
+
+export async function triggerScreenshot({ worker_id, profile, task_id }) {
+  const { data } = await http.post('/api/screenshot/take', { worker_id, profile, task_id });
+  return data;
+}
+
+// ─── captures ─────────────────────────────────────────────────────────────────
+
+export async function fetchCaptures(taskId) {
+  const { data } = await http.get(`/api/captures/${taskId}`);
+  return data;
+}
+
+// ─── ranklist ─────────────────────────────────────────────────────────────────
+
+export async function fetchRanklist() {
+  const { data } = await http.get('/api/ranklist');
+  return data;
+}
+
+export async function triggerRanklistCheck({ worker_id, profile, task_id }) {
+  const { data } = await http.post('/api/ranklist/check', { worker_id, profile, task_id });
   return data;
 }

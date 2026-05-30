@@ -148,3 +148,9 @@ vite.config.ts.timestamp-*
 
 # logs directory
 logs/
+
+# Screenshots data
+gateway/data/screenshots/
+
+# Built frontend assets
+gateway/public/assets/

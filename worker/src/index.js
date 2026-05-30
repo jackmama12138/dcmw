@@ -6,9 +6,10 @@ const ChromePool = require('./chrome-pool');
 const GatewayClient = require('./ws-client');
 const { runTask } = require('./task-runner');
 const actionsLoader = require('./actions-loader');
+const { checkRanklist } = require('./ranklist-check');
 const logger = require('./logger');
 
-// ─── env validation ───────────────────────────────────────────────────────────
+// ─── 环境变量校验 ─────────────────────────────────────────────────────────────
 
 const {
   MAC_CHROME_PATH,
@@ -31,7 +32,7 @@ const missing = Object.entries(REQUIRED)
   .map(([k]) => k);
 
 if (missing.length > 0) {
-  logger.error(`Missing required env vars: ${missing.join(', ')}`);
+  logger.error(`缺少必要的环境变量: ${missing.join(', ')}`);
   process.exit(1);
 }
 
@@ -40,14 +41,14 @@ const profileNames = CHROME_PROFILE_NAME.split(',')
   .filter(Boolean);
 
 if (profileNames.length === 0) {
-  logger.error('CHROME_PROFILE_NAME contains no valid profile names');
+  logger.error('CHROME_PROFILE_NAME 中没有有效的 Profile 名称');
   process.exit(1);
 }
 
-// ─── pre-flight checks ────────────────────────────────────────────────────────
+// ─── 启动前检查 ───────────────────────────────────────────────────────────────
 
 if (!fs.existsSync(MAC_CHROME_PATH)) {
-  logger.error(`Chrome executable not found: ${MAC_CHROME_PATH}`);
+  logger.error(`Chrome 可执行文件不存在: ${MAC_CHROME_PATH}`);
   process.exit(1);
 }
 
@@ -55,13 +56,13 @@ const missingProfiles = profileNames.filter(
   name => !fs.existsSync(path.join(CHROME_PROFILES_BASE_DIR, name))
 );
 if (missingProfiles.length > 0) {
-  logger.error(`Chrome profile directories not found: ${missingProfiles.join(', ')} (base: ${CHROME_PROFILES_BASE_DIR})`);
+  logger.error(`Chrome Profile 目录不存在: ${missingProfiles.join(', ')} (基础目录: ${CHROME_PROFILES_BASE_DIR})`);
   process.exit(1);
 }
 
-logger.info('Pre-flight checks passed');
+logger.info('启动前检查通过');
 
-// ─── setup ────────────────────────────────────────────────────────────────────
+// ─── 初始化 ───────────────────────────────────────────────────────────────────
 
 const pool = new ChromePool({
   chromePath: MAC_CHROME_PATH,
@@ -69,9 +70,10 @@ const pool = new ChromePool({
   profileNames,
 });
 
-// Map<"taskId:profile", TaskController> — tracks all in-flight task controllers.
+// Map<"taskId:profile", TaskController> — 追踪所有正在执行的任务控制器
 const runningTasks = new Map();
 
+// 生成任务的唯一键
 function taskKey(taskId, profile) {
   return `${taskId}:${profile}`;
 }
@@ -82,26 +84,29 @@ const client = new GatewayClient({
   pool,
   onTask: handleTask,
 
+  // 收到停止任务指令时，通知对应控制器停止
   onStop({ task_id, profile }) {
     const ctrl = runningTasks.get(taskKey(task_id, profile));
     if (ctrl) {
       ctrl.stop();
-      logger.info(`[${profile}] task ${task_id} stop signal received`);
+      logger.info(`[${profile}] 任务 ${task_id} 收到停止信号`);
     } else {
-      logger.warn(`[${profile}] stop_task for unknown task ${task_id}`);
+      logger.warn(`[${profile}] 收到未知任务 ${task_id} 的停止指令`);
     }
   },
 
+  // 收到更新任务时长指令时，动态更新对应控制器的 task_time
   onUpdateTime({ task_id, profile, task_time }) {
     const ctrl = runningTasks.get(taskKey(task_id, profile));
     if (ctrl) {
       ctrl.updateTaskTime(task_time);
-      logger.info(`[${profile}] task ${task_id} task_time updated → ${task_time}s`);
+      logger.info(`[${profile}] 任务 ${task_id} task_time 已更新 → ${task_time}s`);
     } else {
-      logger.warn(`[${profile}] update_task_time for unknown task ${task_id}`);
+      logger.warn(`[${profile}] 收到未知任务 ${task_id} 的 update_task_time 指令`);
     }
   },
 
+  // 热重载动作代码或恢复内置动作
   onReloadActions({ code }) {
     if (code) {
       actionsLoader.reload(code);
@@ -109,29 +114,67 @@ const client = new GatewayClient({
       actionsLoader.resetToBuiltin();
     }
   },
+
+  // 执行榜单检查
+  async onRanklist({ profile, task_id }) {
+    const slot = pool.slots.get(profile);
+    if (!slot?.context) {
+      logger.warn(`[${profile}] run_ranklist: 无活跃 context`);
+      return;
+    }
+    const ctrl = runningTasks.get(taskKey(task_id, profile)) ?? { profile, task_id };
+    await checkRanklist(slot.context, ctrl);
+  },
+
+  // 执行截图
+  async onScreenshot({ profile, task_id }) {
+    const slot = pool.slots.get(profile);
+    if (!slot?.context) {
+      logger.warn(`[${profile}] run_screenshot: 无活跃 context`);
+      return;
+    }
+    const ctrl = runningTasks.get(taskKey(task_id, profile)) ?? { profile, task_id };
+    await actionsLoader.runStep(slot.context, { type: 'screenshot' }, ctrl);
+  },
+
+  // 提供当前所有运行中任务的状态，gateway 重启后心跳携带此信息恢复映射
+  getStatus() {
+    const result = {};
+    for (const [key, ctrl] of runningTasks.entries()) {
+      const colonIdx = key.indexOf(':');
+      const profile  = key.slice(colonIdx + 1);
+      result[profile] = {
+        state     : 'busy',
+        task_id   : ctrl.task_id,
+        target_url: ctrl.target_url ?? '',
+      };
+    }
+    return result;
+  },
 });
 
-// ─── task handler ─────────────────────────────────────────────────────────────
+// ─── 任务处理 ─────────────────────────────────────────────────────────────────
 
+// 接收来自 gateway 的任务并启动执行流程
 async function handleTask(task) {
   const { task_id, profile } = task;
 
   if (!task_id || !profile) {
-    logger.warn(`Received task with missing task_id or profile: ${JSON.stringify(task)}`);
+    logger.warn(`收到缺少 task_id 或 profile 的任务: ${JSON.stringify(task)}`);
     return;
   }
 
   const slot = pool.slots.get(profile);
   if (!slot) {
-    logger.warn(`[${profile}] unknown profile — rejecting task ${task_id}`);
+    logger.warn(`[${profile}] 未知 Profile — 拒绝任务 ${task_id}`);
     client.send({ type: 'task_rejected', task_id, profile, reason: 'unknown_profile' });
     return;
   }
 
   if (slot.state !== 'idle') {
-    logger.warn(`[${profile}] not idle (${slot.state}) — rejecting task ${task_id}`);
+    logger.warn(`[${profile}] 非空闲状态 (${slot.state}) — 拒绝任务 ${task_id}`);
     client.send({ type: 'task_rejected', task_id, profile, reason: 'slot_busy' });
-    // Reset error state so the next dispatch can relaunch Chrome cleanly.
+    // 重置错误状态，以便 gateway 下次可以重新分配到该 Profile
     if (slot.state === 'error') await pool.release(profile);
     return;
   }
@@ -140,9 +183,9 @@ async function handleTask(task) {
   try {
     context = await pool.acquire(profile);
   } catch (err) {
-    logger.error(`[${profile}] failed to launch Chrome: ${err.message}`);
+    logger.error(`[${profile}] 启动 Chrome 失败: ${err.message}`);
     client.send({ type: 'task_result', task_id, profile, status: 'error', error: err.message });
-    // Fix ③: reset the slot to idle so the gateway can re-dispatch to this profile.
+    // 重置槽位为空闲，让 gateway 可以重新调度到该 Profile
     await pool.release(profile);
     return;
   }
@@ -154,8 +197,8 @@ async function handleTask(task) {
       runningTasks.delete(key);
       client.send({ type: 'task_result', ...result });
       try { await pool.release(profile); } catch (err) {
-        logger.error(`[${profile}] pool.release failed: ${err.message}`);
-        // Force slot back to idle so future tasks can use this profile.
+        logger.error(`[${profile}] pool.release 失败: ${err.message}`);
+        // 强制将槽位恢复为空闲，保证后续任务可以使用该 Profile
         const s = pool.slots.get(profile);
         if (s) { s.state = 'idle'; s.context = null; s.releasing = false; }
       }
@@ -164,10 +207,11 @@ async function handleTask(task) {
   runningTasks.set(key, ctrl);
 }
 
-// ─── process lifecycle ────────────────────────────────────────────────────────
+// ─── 进程生命周期 ─────────────────────────────────────────────────────────────
 
+// 优雅退出：断开 WebSocket、关闭所有 Chrome 实例
 async function shutdown(signal) {
-  logger.info(`Received ${signal} — shutting down`);
+  logger.info(`收到 ${signal} 信号 — 正在关闭`);
   client.destroy();
   await pool.shutdown();
   process.exit(0);
@@ -177,16 +221,16 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 process.on('uncaughtException', (err) => {
-  logger.error(`Uncaught exception: ${err.stack ?? err.message}`);
+  logger.error(`未捕获的异常: ${err.stack ?? err.message}`);
 });
 
 process.on('unhandledRejection', (reason) => {
-  logger.error(`Unhandled rejection: ${reason}`);
+  logger.error(`未处理的 Promise 拒绝: ${reason}`);
 });
 
-// ─── start ────────────────────────────────────────────────────────────────────
+// ─── 启动 ─────────────────────────────────────────────────────────────────────
 
 pool.init();
 client.connect();
 
-logger.info(`Worker started — id: ${WORKER_ID}, profiles: ${profileNames.length}`);
+logger.info(`Worker 已启动 — id: ${WORKER_ID}, Profile 数量: ${profileNames.length}`);

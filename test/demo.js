@@ -127,6 +127,8 @@ async function init(profileName) {
 	try {
 		await globalPage.goto('https://live.douyin.com', { waitUntil: 'commit' });
 		console.log(`[${profileName}] 界面清洗完毕。历史沙盒警告条已成功物理切除。可以使用 Ctrl+C 安全退出。`);
+		// await globalPage.
+
 	} catch (error) {
 		console.error("执行失败:", error.message);
 		clearInterval(autoSaveTimer);

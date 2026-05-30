@@ -1,6 +1,10 @@
 <template>
-  <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
-    <h2 class="text-lg font-semibold mb-4">发布任务</h2>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-800">
+      <h2 class="text-sm font-semibold">发布任务</h2>
+      <p class="text-xs text-gray-600 mt-0.5">选择模板或自定义 Pipeline，指定目标 URL 和节点数量后提交</p>
+    </div>
+    <div class="p-5">
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- target_url -->
@@ -77,12 +81,13 @@
       </div>
     </div>
 
-    <div class="mt-4 flex items-center gap-3">
+    <div class="mt-5 flex items-center gap-3">
       <button @click="submit" :disabled="submitting"
         class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
-        {{ submitting ? '提交中...' : '发布任务' }}
+        {{ submitting ? '提交中…' : '发布任务' }}
       </button>
-      <span v-if="msg" :class="isError ? 'text-red-400' : 'text-green-400'" class="text-sm">{{ msg }}</span>
+      <span v-if="msg" :class="isError ? 'text-red-400' : 'text-emerald-400'" class="text-sm">{{ msg }}</span>
+    </div>
     </div>
   </div>
 </template>

@@ -243,15 +243,63 @@ class TaskStore {
 
   // ─── cookie collection ────────────────────────────────────────────────────
 
+  // ─── cookie collection（全局，按 user_unique_id 去重覆盖）──────────────────
+  // 不再按 task_id 分桶，新数据覆盖同一账号的旧数据
+
   async addCookie(taskId, data) {
-    const key = `cookies:task:${taskId}`;
+    const uid = data.user_unique_id || `_nuid_${data.profile}`;
+    const payload = { ...data, task_id: taskId };
+    await this.redis.hset('cookies:map', uid, JSON.stringify(payload));
+    await this.redis.zadd('cookies:index', data.timestamp || Date.now(), uid);
+  }
+
+  async getAllCookies() {
+    const uids = await this.redis.zrevrange('cookies:index', 0, -1);
+    if (!uids.length) return [];
+    const vals = await this.redis.hmget('cookies:map', ...uids);
+    return vals.map(v => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
+  }
+
+  async addCapture(taskId, data) {
+    const key = `captures:task:${taskId}`;
     await this.redis.lpush(key, JSON.stringify(data));
     await this.redis.expire(key, 86400);
   }
 
-  async getCookies(taskId) {
-    const items = await this.redis.lrange(`cookies:task:${taskId}`, 0, -1);
+  async getCaptures(taskId) {
+    const items = await this.redis.lrange(`captures:task:${taskId}`, 0, -1);
     return items.map(i => { try { return JSON.parse(i); } catch { return null; } }).filter(Boolean);
+  }
+
+  // ─── screenshot metadata（存 worker_id 等信息，文件名为 key）─────────────
+
+  async addScreenshotMeta(filename, data) {
+    await this.redis.hset('screenshots:meta', filename, JSON.stringify(data));
+  }
+
+  async getScreenshotsMeta(filenames) {
+    if (!filenames.length) return {};
+    const vals = await this.redis.hmget('screenshots:meta', ...filenames);
+    const out = {};
+    filenames.forEach((f, i) => {
+      if (vals[i]) try { out[f] = JSON.parse(vals[i]); } catch {}
+    });
+    return out;
+  }
+
+  // ─── ranklist（按 worker_id:profile 去重覆盖）────────────────────────────
+
+  async addRanklist(data) {
+    const key = `${data.worker_id}:${data.profile}`;
+    await this.redis.hset('ranklist:map', key, JSON.stringify(data));
+    await this.redis.zadd('ranklist:index', data.timestamp || Date.now(), key);
+  }
+
+  async getAllRanklist() {
+    const keys = await this.redis.zrevrange('ranklist:index', 0, -1);
+    if (!keys.length) return [];
+    const vals = await this.redis.hmget('ranklist:map', ...keys);
+    return vals.map(v => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
   }
 
   // ─── queries ──────────────────────────────────────────────────────────────
