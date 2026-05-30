@@ -15,10 +15,19 @@ const { createRouter } = require('./router');
 
 async function main() {
   // ─── infrastructure ───────────────────────────────────────────────────────
-  const redis = createRedisClient(config.redis);
-  await redis.connect();
+  const backend = (process.env.STORAGE_BACKEND || 'redis').toLowerCase();
+  let redis = null;
+  let taskStore;
 
-  const taskStore = new TaskStore(redis);
+  if (backend === 'sqlite') {
+    logger.info('存储后端: SQLite');
+    taskStore = new TaskStore();
+  } else {
+    logger.info('存储后端: Redis');
+    redis = createRedisClient(config.redis);
+    await redis.connect();
+    taskStore = new TaskStore(redis);
+  }
   const registry = new WorkerRegistry();
   const scheduler = new Scheduler({ taskStore, registry });
 
@@ -98,7 +107,7 @@ async function main() {
   async function shutdown(signal) {
     logger.info(`Received ${signal} — shutting down`);
     server.close(() => logger.info('HTTP server closed'));
-    await redis.quit();
+    if (redis) await redis.quit();
     process.exit(0);
   }
 

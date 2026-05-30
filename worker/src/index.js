@@ -68,6 +68,17 @@ const pool = new ChromePool({
   chromePath: MAC_CHROME_PATH,
   profilesBaseDir: CHROME_PROFILES_BASE_DIR,
   profileNames,
+  onUnexpectedClose(profile) {
+    // Chrome 被意外关闭：只中断 ctrl，task_result 由 pipeline 错误路径统一上报
+    // 不在此处发送 task_result，避免与 onComplete 双重上报
+    for (const [, ctrl] of runningTasks.entries()) {
+      if (ctrl.profile === profile) {
+        logger.warn(`[${profile}] Chrome 意外关闭，中断任务 ${ctrl.task_id}`);
+        ctrl.stop();
+        break;
+      }
+    }
+  },
 });
 
 // Map<"taskId:profile", TaskController> — 追踪所有正在执行的任务控制器
@@ -185,8 +196,7 @@ async function handleTask(task) {
   } catch (err) {
     logger.error(`[${profile}] 启动 Chrome 失败: ${err.message}`);
     client.send({ type: 'task_result', task_id, profile, status: 'error', error: err.message });
-    // 重置槽位为空闲，让 gateway 可以重新调度到该 Profile
-    await pool.release(profile);
+    await pool.release(profile, { forceClose: true });
     return;
   }
 

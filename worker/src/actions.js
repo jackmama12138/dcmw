@@ -280,10 +280,11 @@ async function runCode(context, { code }, ctrl) {
 async function close(context, _params, ctrl) {
   if (!context) return;
   ctrl?.markReleasing();
+  // 懒关闭模式：不真正关闭 context，导航到空白页
+  // 真正的关闭由 chrome-pool 的空闲超时或进程退出负责
   try {
     const pages = context.pages();
-    await Promise.allSettled(pages.map(p => p.close()));
-    await context.close();
+    if (pages.length > 0) await pages[0].goto('about:blank').catch(() => {});
   } catch (err) {
     logger.warn(`close: ${err.message}`);
   }

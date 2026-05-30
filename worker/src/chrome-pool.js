@@ -6,7 +6,7 @@ const logger = require('./logger');
 const STATE = { IDLE: 'idle', BUSY: 'busy', ERROR: 'error' };
 
 class ChromePool {
-  constructor({ chromePath, profilesBaseDir, profileNames }) {
+  constructor({ chromePath, profilesBaseDir, profileNames, onUnexpectedClose }) {
     if (!chromePath) throw new Error('ChromePool: chromePath 是必填项');
     if (!profilesBaseDir) throw new Error('ChromePool: profilesBaseDir 是必填项');
     if (!Array.isArray(profileNames) || profileNames.length === 0) {
@@ -16,6 +16,7 @@ class ChromePool {
     this.chromePath = chromePath;
     this.profilesBaseDir = profilesBaseDir;
     this.profileNames = profileNames;
+    this.onUnexpectedClose = onUnexpectedClose ?? (() => {});
     // Map<profileName, { state: STATE, context: BrowserContext|null }>
     this.slots = new Map();
   }
@@ -45,11 +46,23 @@ class ChromePool {
   }
 
   // 获取槽位并启动 Chrome，若槽位非空闲则抛出异常
+  // 懒关闭模式：若 context 已存在则直接复用，无需重新启动
   async acquire(profileName) {
     const slot = this.slots.get(profileName);
     if (!slot) throw new Error(`ChromePool: 未知 Profile "${profileName}"`);
     if (slot.state !== STATE.IDLE) {
       throw new Error(`ChromePool: Profile "${profileName}" 当前状态为 ${slot.state}`);
+    }
+
+    // 清除懒关闭定时器，复用已有 context
+    if (slot._idleTimer) {
+      clearTimeout(slot._idleTimer);
+      slot._idleTimer = null;
+    }
+    if (slot.context) {
+      slot.state = STATE.BUSY;
+      logger.info(`[${profileName}] 复用已有 Chrome context`);
+      return slot.context;
     }
 
     slot.state = STATE.BUSY;
@@ -74,8 +87,9 @@ class ChromePool {
         // 忽略由 pool.release() 或 close() 动作触发的主动关闭
         if (slot.state === STATE.BUSY && !slot.releasing) {
           logger.warn(`[${profileName}] Chrome context 意外关闭`);
-          slot.state = STATE.ERROR;
+          slot.state = STATE.IDLE;
           slot.context = null;
+          this.onUnexpectedClose(profileName);
         }
       });
 
@@ -88,16 +102,36 @@ class ChromePool {
     }
   }
 
-  // 释放槽位：关闭 context 并将状态置为空闲
-  async release(profileName) {
+  // 释放槽位：懒关闭模式下保留 context，导航到空白页等待复用
+  // forceClose=true 时才真正关闭 Chrome（进程退出或长期空闲时使用）
+  async release(profileName, { forceClose = false } = {}) {
     const slot = this.slots.get(profileName);
     if (!slot) return;
 
+    if (slot.context && !forceClose) {
+      // 懒关闭：保存窗口状态，导航到空白页，启动空闲计时器
+      await this._saveWindowState(profileName, slot.context);
+      try {
+        const pages = slot.context.pages();
+        if (pages.length > 0) await pages[0].goto('about:blank').catch(() => {});
+      } catch {}
+      slot.state = STATE.IDLE;
+      logger.info(`[${profileName}] 已释放 → 空闲（Chrome 保留）`);
+
+      // 10分钟无任务则真正关闭，释放内存
+      slot._idleTimer = setTimeout(() => this._forceClose(profileName), 10 * 60 * 1000);
+      return;
+    }
+
+    // 真正关闭 Chrome
+    if (slot._idleTimer) {
+      clearTimeout(slot._idleTimer);
+      slot._idleTimer = null;
+    }
     if (slot.context) {
       await this._saveWindowState(profileName, slot.context);
       slot.releasing = true;
       try {
-        // 修复：用变量持有定时器句柄，context.close() 完成后及时清除，避免定时器泄漏
         let closeTimeoutHandle;
         const closeTimeout = new Promise((_, reject) => {
           closeTimeoutHandle = setTimeout(() => reject(new Error('关闭超时')), 8000);
@@ -109,14 +143,22 @@ class ChromePool {
           closeTimeout,
         ]);
       } catch (err) {
-        logger.warn(`[${profileName}] 释放时出错: ${err.message}`);
+        logger.warn(`[${profileName}] 关闭时出错: ${err.message}`);
       }
       slot.releasing = false;
       slot.context = null;
     }
 
     slot.state = STATE.IDLE;
-    logger.info(`[${profileName}] 已释放 → 空闲`);
+    logger.info(`[${profileName}] 已释放 → 空闲（Chrome 已关闭）`);
+  }
+
+  // 强制关闭指定槽位的 Chrome（空闲超时触发）
+  async _forceClose(profileName) {
+    const slot = this.slots.get(profileName);
+    if (!slot || slot.state !== STATE.IDLE) return;
+    logger.info(`[${profileName}] 空闲超时，关闭 Chrome 释放内存`);
+    await this.release(profileName, { forceClose: true });
   }
 
   // 获取所有繁忙槽位当前页面的 URL 和标题
@@ -175,11 +217,11 @@ class ChromePool {
     }
   }
 
-  // 优雅关闭所有槽位
+  // 优雅关闭所有槽位（进程退出时调用，强制关闭所有 Chrome）
   async shutdown() {
     logger.info('ChromePool 正在关闭...');
     await Promise.allSettled(
-      [...this.slots.keys()].map(name => this.release(name))
+      [...this.slots.keys()].map(name => this.release(name, { forceClose: true }))
     );
     logger.info('ChromePool 已关闭');
   }

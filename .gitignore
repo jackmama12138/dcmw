@@ -154,3 +154,5 @@ gateway/data/screenshots/
 
 # Built frontend assets
 gateway/public/assets/
+# SQLite database
+data/*.db
