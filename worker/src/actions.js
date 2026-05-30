@@ -231,21 +231,6 @@ async function mousemove(context, { x, y }) {
   await page.mouse.move(x, y);
 }
 
-// 按下鼠标按键
-async function mousedown(context, { button = 'left' }) {
-  const VALID_BUTTONS = ['left', 'middle', 'right'];
-  const safeButton = VALID_BUTTONS.includes(button) ? button : 'left';
-  const page = await getOrCreatePage(context);
-  await page.mouse.down({ button: safeButton });
-}
-
-// 释放鼠标按键
-async function mouseup(context, { button = 'left' }) {
-  const VALID_BUTTONS = ['left', 'middle', 'right'];
-  const safeButton = VALID_BUTTONS.includes(button) ? button : 'left';
-  const page = await getOrCreatePage(context);
-  await page.mouse.up({ button: safeButton });
-}
 
 // 在页面上下文中执行任意 JS 代码并返回结果
 // { code: "document.title" } 或 { code: "() => { ... }" }
@@ -340,11 +325,7 @@ async function rtcookie(context, { url }, ctrl) {
         }
       }
     } finally {
-      try {
-        await route.continue();
-      } catch (err) {
-        if (!err.message?.includes('already handled')) throw err;
-      }
+      await route.continue().catch(() => {});
     }
   };
 
@@ -491,23 +472,37 @@ async function intercept(context, { url, timeout = 15000 }, ctrl) {
 
 // 暂停第一个或全部匹配的 <video> 元素
 async function pauseVideo(context, { selector = 'video', all = false, timeout = 10000 }) {
+  // "false" 字符串在 JSON pipeline 里是 truthy，统一转布尔
+  const selectAll = all === true || all === 'true';
+  const safeTimeout = clamp(Number(timeout) || 10000, 1000, 30000);
   const page = await getOrCreatePage(context);
+
+  // 等视频元素出现且 readyState > 0（有媒体数据），否则 pause() 是空操作
   try {
-    await page.waitForSelector(selector, { timeout: clamp(Number(timeout) || 10000, 1000, 30000) });
+    await page.waitForFunction(
+      ({ sel, all }) => {
+        const els = all ? [...document.querySelectorAll(sel)] : [document.querySelector(sel)];
+        return els.some(v => v && v.readyState > 0);
+      },
+      { sel: selector, all: selectAll },
+      { timeout: safeTimeout }
+    );
   } catch {
-    logger.warn(`pause-video: 选择器 "${selector}" 在 ${timeout}ms 内未出现，已跳过`);
+    logger.warn(`pause-video: "${selector}" 在 ${safeTimeout}ms 内未就绪，已跳过`);
     return;
   }
+
   const result = await page.evaluate(({ sel, all }) => {
     const els = all ? [...document.querySelectorAll(sel)] : [document.querySelector(sel)];
     let total = 0, paused = 0, already = 0;
     for (const v of els) {
-      if (!v) continue;
+      if (!v || v.readyState === 0) continue;
       total++;
       if (v.paused) { already++; } else { v.pause(); paused++; }
     }
     return { total, paused, already };
-  }, { sel: selector, all });
+  }, { sel: selector, all: selectAll });
+
   if (result.already > 0 && result.paused === 0) {
     logger.info(`pause-video: 找到 ${result.total} 个元素，均已暂停`);
   } else {
@@ -517,13 +512,19 @@ async function pauseVideo(context, { selector = 'video', all = false, timeout = 
 
 // 对匹配的 <video> 元素设置静音或取消静音
 async function muteVideo(context, { selector = 'video', mute = true, all = false, timeout = 10000 }) {
+  // "false" 字符串在 JSON pipeline 里是 truthy，统一转布尔
+  const selectAll = all === true || all === 'true';
+  const safeMute  = mute === true || mute === 'true';
+  const safeTimeout = clamp(Number(timeout) || 10000, 1000, 30000);
   const page = await getOrCreatePage(context);
+
   try {
-    await page.waitForSelector(selector, { timeout: clamp(Number(timeout) || 10000, 1000, 30000) });
+    await page.waitForSelector(selector, { timeout: safeTimeout });
   } catch {
-    logger.warn(`mute-video: 选择器 "${selector}" 在 ${timeout}ms 内未出现，已跳过`);
+    logger.warn(`mute-video: "${selector}" 在 ${safeTimeout}ms 内未出现，已跳过`);
     return;
   }
+
   const found = await page.evaluate(({ sel, mute, all }) => {
     const els = all ? [...document.querySelectorAll(sel)] : [document.querySelector(sel)];
     let count = 0;
@@ -531,8 +532,9 @@ async function muteVideo(context, { selector = 'video', mute = true, all = false
       if (v) { v.muted = mute; v.volume = mute ? 0 : 1; count++; }
     }
     return count;
-  }, { sel: selector, mute, all });
-  logger.info(`mute-video: ${mute ? '已静音' : '已取消静音'} ${found} 个匹配 "${selector}" 的元素`);
+  }, { sel: selector, mute: safeMute, all: selectAll });
+
+  logger.info(`mute-video: ${safeMute ? '已静音' : '已取消静音'} ${found} 个匹配 "${selector}" 的元素`);
 }
 
 // 等待指定元素出现，超时可选择结束任务
@@ -553,6 +555,9 @@ async function waitFor(context, { string, timeout = 10000, stopOnTimeout = false
   }
 }
 
+// 记录已注册 addInitScript 的 context，懒关闭复用时避免重复注册
+const _antidetectInited = new WeakSet();
+
 // 注入可见性欺骗脚本并启动人类活动模拟循环，防止页面检测到后台状态
 // 使用 context.addInitScript 确保导航后依然生效；活动循环每 30–60s 触发一次
 async function antidetect(context) {
@@ -564,33 +569,91 @@ async function antidetect(context) {
       const triggerNext = () => {
         const types = ['mousemove', 'keydown', 'wheel', 'click'];
         document.dispatchEvent(new Event(types[Math.floor(Math.random() * types.length)], { bubbles: true }));
-        const delay = 30_000 + Math.floor(Math.random() * 30_000); // 30–60 秒
+        const delay = 30_000 + Math.floor(Math.random() * 30_000);
         window._antiPauseHumanHook = setTimeout(triggerNext, delay);
       };
       triggerNext();
     }
+
+    // 捕获阶段监听所有 video 的 play 事件，触发时立即静音
+    // 无需 MutationObserver，适用于当前及未来动态创建/重建的所有 video 元素
+    if (!window._antiMuteHook) {
+      window._antiMuteHook = true;
+      document.addEventListener('play', (e) => {
+        if (e.target.tagName === 'VIDEO') {
+          e.target.muted = true;
+          e.target.volume = 0;
+        }
+      }, true);
+    }
   };
 
-  await context.addInitScript(script); // 未来的导航也会执行
+  // 同一个 context 只注册一次，懒关闭复用后不重复叠加
+  if (!_antidetectInited.has(context)) {
+    _antidetectInited.add(context);
+    await context.addInitScript(script);
+  }
   const page = await getOrCreatePage(context);
   try {
-    await page.evaluate(script);       // 当前页面立即执行
+    await page.evaluate(script);
   } catch (err) {
     logger.warn(`antidetect: evaluate 已跳过 (${err.message})`);
+  }
+}
+
+// 读取浏览器存储的 Cookie 并与 rtcookie 拦截结果对比
+// url 参数指定域名范围，默认读所有；上报格式与 rtcookie 一致方便直接对比
+async function getCookies(context, { url = 'https://live.douyin.com' }, ctrl) {
+  const page = await getOrCreatePage(context);
+  const currentUrl = page.url();
+
+  // context.cookies() 返回结构化对象，包含 httpOnly cookie
+  // 不传 url 拿全部 Cookie，避免按域名过滤导致遗漏其他域名设置的字段
+  const all = await context.cookies();
+
+  // 序列化成与 rtcookie 相同的 key=value; 格式
+  const cookieStr = all.map(c => `${c.name}=${c.value}`).join('; ');
+
+  // 打印结构化列表，方便对比哪些 rtcookie 里有、哪些没有
+  logger.info(`[get-cookies] 共 ${all.length} 个 Cookie (url=${url}):`);
+  for (const c of all) {
+    logger.info(`  ${c.httpOnly ? '[httpOnly]' : '[js可读]'} ${c.name}=${c.value.slice(0, 30)}${c.value.length > 30 ? '...' : ''}`);
+  }
+  logger.info(`[get-cookies] 序列化结果:\n${cookieStr}`);
+
+  // 同步上报到 gateway，与 rtcookie 用同一个 /api/cookies 接口
+  const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
+  if (base) {
+    fetch(`${base}/api/cookies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile        : ctrl?.profile,
+        task_id        : ctrl?.task_id,
+        worker_id      : process.env.WORKER_ID ?? '',
+        pattern        : `get-cookies:${url}`,
+        matched_url    : currentUrl,
+        cookie         : cookieStr,
+        cookie_detail  : all.map(c => ({ name: c.name, value: c.value, httpOnly: c.httpOnly, domain: c.domain })),
+        timestamp      : Date.now(),
+      }),
+      signal: AbortSignal.timeout(5000),
+    }).catch(err => logger.warn(`get-cookies 上报失败: ${err.message}`));
   }
 }
 
 // ─── 动作分发器 ──────────────────────────────────────────────────────────────
 
 const ACTION_MAP = {
-  navigate, open: navigate, goto: navigate, reload,
+  navigate, reload,
   wait, dwell,
-  click, dblclick, hover, fill, scroll, mousemove, mousedown, mouseup,
+  click, dblclick, hover, fill, scroll, mousemove,
   rtcookie, screenshot, antidetect,
   'pause-video': pauseVideo, 'mute-video': muteVideo, 'wait-for': waitFor,
   'hover-capture': hoverCapture,
   intercept,
   eval: evalAction, 'run-code': runCode,
+  'get-cookies': getCookies,
   close,
 };
 

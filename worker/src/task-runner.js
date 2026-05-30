@@ -46,17 +46,35 @@ function runTask(context, task, { onComplete, pool }) {
     },
   };
 
-  // Chrome 崩溃或被外部关闭时，立即停止 ctrl，避免 dwell/wait 继续等满 task_time
-  context.once('close', () => ctrl.stop());
+  // 任务结束后清理 context 级别的监听器，防止懒关闭复用时监听器叠加
+  const cleanup = () => {
+    context.off('close', onContextClose);
+    context.off('page', onNewPage);
+  };
 
-  _execute(context, task, { onComplete, ctrl })
+  const onContextClose = () => ctrl.stop();
+  context.on('close', onContextClose);
+
+  // 用户手动关闭 tab 时，context 仍存活（Chrome 会新开空白 tab），
+  // 需要单独监听 page close 来停止任务
+  const onPageClose = () => {
+    if (!ctrl.stopped) {
+      logger.info(`[${task.profile}][task:${task.task_id}] 页面被关闭，停止任务`);
+      ctrl.stop();
+    }
+  };
+  const onNewPage = page => page.once('close', onPageClose);
+  for (const page of context.pages()) page.once('close', onPageClose);
+  context.on('page', onNewPage);
+
+  _execute(context, task, { onComplete, ctrl, cleanup })
     .catch(err => logger.error(`[${task.profile}][task:${task.task_id}] runTask 崩溃: ${err.message}`));
 
   return ctrl;
 }
 
 // 异步执行 pipeline 步骤，包含安全网超时和 settle 去重保护
-async function _execute(context, task, { onComplete, ctrl }) {
+async function _execute(context, task, { onComplete, ctrl, cleanup }) {
   const { task_id, pipeline, task_time, target_url, profile } = task;
   const tag = `[${profile}][task:${task_id}]`;
 
@@ -72,6 +90,7 @@ async function _execute(context, task, { onComplete, ctrl }) {
     if (settled) return;
     settled = true;
     ctrl.stopped = true; // 通知所有轮询器（rtcookie stopPoller、dwell tick）自行清理
+    cleanup?.();         // 移除 context 级别的监听器，防止懒关闭复用时叠加
     await httpNotify(result.profile, result.status, result.target_url, result.task_id);
     await onComplete(result);
   }

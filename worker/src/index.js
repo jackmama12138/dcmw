@@ -205,13 +205,16 @@ async function handleTask(task) {
     pool,
     onComplete: async (result) => {
       runningTasks.delete(key);
-      client.send({ type: 'task_result', ...result });
+      // 先 release 再上报：确保 slot 真正空闲后 gateway 才会重新调度
+      // 否则 gateway 收到 task_result 立刻派新任务，worker 还在 goto about:blank，
+      // 导致新任务被 slot_busy 拒绝并触发 20 秒冷却
       try { await pool.release(profile); } catch (err) {
         logger.error(`[${profile}] pool.release 失败: ${err.message}`);
         // 强制将槽位恢复为空闲，保证后续任务可以使用该 Profile
         const s = pool.slots.get(profile);
         if (s) { s.state = 'idle'; s.context = null; s.releasing = false; }
       }
+      client.send({ type: 'task_result', ...result });
     },
   });
   runningTasks.set(key, ctrl);

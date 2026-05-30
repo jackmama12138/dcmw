@@ -16,11 +16,11 @@ function safeName(raw) {
 
 // 合法的 pipeline 动作类型白名单
 const VALID_ACTION_TYPES = new Set([
-  'navigate','open','goto','reload',
+  'navigate','reload',
   'wait','dwell',
-  'click','dblclick','hover','fill','scroll','mousemove','mousedown','mouseup',
+  'click','dblclick','hover','fill','scroll','mousemove',
   'rtcookie','screenshot','antidetect','pause-video','mute-video','wait-for','hover-capture','intercept',
-  'eval','run-code',
+  'eval','run-code','get-cookies',
   'close',
 ]);
 

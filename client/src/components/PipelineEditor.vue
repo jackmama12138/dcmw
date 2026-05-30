@@ -132,7 +132,7 @@ const STEP_DEFS = {
     ]},
   dwell:       { label: '挂机(task_time)', badge: 'bg-green-900 text-green-300',  fields: [] },
   reload:      { label: '刷新页面',         badge: 'bg-orange-900 text-orange-300', fields: [] },
-  antidetect:     { label: '防检测',     badge: 'bg-teal-900 text-teal-300',    fields: [] },
+  antidetect:     { label: '防检测+静音', badge: 'bg-teal-900 text-teal-300',    fields: [] },
   'hover-capture': { label: 'Hover 移入移出', badge: 'bg-indigo-900 text-indigo-300',
     fields: [
       { key: 'string', label: '选择器 / getBy*', type: 'text', placeholder: "getByText('推荐') 或 .card" },
@@ -144,6 +144,10 @@ const STEP_DEFS = {
     fields: [
       { key: 'url',     label: '响应 URL 关键词', type: 'text', placeholder: '/api/recommend' },
       { key: 'timeout', label: '超时(ms)',         type: 'number', default: 15000 },
+    ]},
+  'get-cookies':  { label: '读取Cookie', badge: 'bg-yellow-900 text-yellow-300',
+    fields: [
+      { key: 'url', label: '域名范围', type: 'text', placeholder: 'https://live.douyin.com', default: 'https://live.douyin.com' },
     ]},
   'pause-video':  { label: '暂停视频',   badge: 'bg-teal-900 text-teal-300',
     fields: [

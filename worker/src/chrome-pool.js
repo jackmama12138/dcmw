@@ -73,28 +73,52 @@ class ChromePool {
       ? [`--window-size=${winState.width},${winState.height}`, `--window-position=${winState.x},${winState.y}`]
       : [];
 
+    this._fixExitType(userDataDir);
+
     try {
       const context = await chromium.launchPersistentContext(userDataDir, {
         executablePath: this.chromePath,
         headless: false,
         viewport: null,
-        args: ['--no-first-run', '--no-default-browser-check', ...winArgs],
+        args: [
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--test-type',
+          '--disable-accelerated-video-decode',
+          '--disable-gpu-rasterization',
+          '--disable-gpu-compositing',
+          ...winArgs,
+        ],
       });
 
       // launchPersistentContext 返回 BrowserContext 而非 Browser
       // context.browser() 对持久化 context 为 null，直接监听 context 的 close 事件
       context.on('close', () => {
         // 忽略由 pool.release() 或 close() 动作触发的主动关闭
-        if (slot.state === STATE.BUSY && !slot.releasing) {
-          logger.warn(`[${profileName}] Chrome context 意外关闭`);
-          slot.state = STATE.IDLE;
-          slot.context = null;
+        if (slot.releasing) return;
+
+        // 无论 BUSY 还是 IDLE（懒关闭保留期间），Chrome 意外关闭都必须清理 context
+        // 否则 IDLE 状态下的脏引用会导致下次 acquire 复用已死的 context
+        logger.warn(`[${profileName}] Chrome context 意外关闭（状态: ${slot.state}）`);
+        const wasBusy = slot.state === STATE.BUSY;
+        slot.state = STATE.IDLE;
+        slot.context = null;
+        if (slot._idleTimer) {
+          clearTimeout(slot._idleTimer);
+          slot._idleTimer = null;
+        }
+        if (wasBusy) {
           this.onUnexpectedClose(profileName);
         }
       });
 
       slot.context = context;
       logger.info(`[${profileName}] Chrome 已启动`);
+
+      // 启动后把所有已打开页面导航到 about:blank：
+      // 持久化 profile 会恢复上次的页面，统一清掉避免干扰任务执行
+      await this._dismissRestoreDialog(context, profileName);
+
       return context;
     } catch (err) {
       slot.state = STATE.ERROR;
@@ -130,6 +154,12 @@ class ChromePool {
     }
     if (slot.context) {
       await this._saveWindowState(profileName, slot.context);
+      // acquire() 可能在 saveWindowState 的 await 期间抢先把 slot 设为 BUSY
+      // 此时不能继续关闭，否则会中断正在执行的任务
+      if (slot.state === STATE.BUSY) {
+        logger.warn(`[${profileName}] forceClose 被 acquire 抢占，放弃关闭`);
+        return;
+      }
       slot.releasing = true;
       try {
         let closeTimeoutHandle;
@@ -176,6 +206,62 @@ class ChromePool {
       } catch {}
     }
     return result;
+  }
+
+  // 启动后检测并关掉"恢复页面"弹窗页面
+  // Chrome 崩溃检测在参数压制失效时仍会弹出，直接导航走是最可靠的处理
+  async _dismissRestoreDialog(context, profileName) {
+    try {
+      await new Promise(r => setTimeout(r, 600)); // 等 Chrome 完成初始化
+      const pages = context.pages();
+      for (const page of pages) {
+        if (page.url() === 'about:blank') continue;
+        // 新启动时把所有非空白页统一导航到 about:blank，
+        // 防止持久化 profile 恢复上次页面干扰任务执行
+        await page.goto('about:blank').catch(() => {});
+      }
+      if (pages.length > 1) logger.info(`[${profileName}] 已清理 ${pages.length} 个恢复页面`);
+    } catch (err) {
+      logger.warn(`[${profileName}] 清理页面失败: ${err.message}`);
+    }
+  }
+
+  // 启动前将 Chrome profile 的退出类型强制设为 Normal，防止弹"恢复页面"对话框
+  _fixExitType(userDataDir) {
+    // 修 Default/Preferences
+    try {
+      const prefPath = path.join(userDataDir, 'Default', 'Preferences');
+      if (fs.existsSync(prefPath)) {
+        const prefs = JSON.parse(fs.readFileSync(prefPath, 'utf8'));
+        if (prefs?.profile?.exit_type !== 'Normal') {
+          if (!prefs.profile) prefs.profile = {};
+          prefs.profile.exit_type = 'Normal';
+          prefs.profile.exited_cleanly = true;
+          fs.writeFileSync(prefPath, JSON.stringify(prefs));
+        }
+      }
+    } catch (err) {
+      logger.warn(`[fixExitType] 修改 Preferences 失败: ${err.message}`);
+    }
+    // 修 Local State（Chrome 也会读这里判断崩溃）
+    try {
+      const localStatePath = path.join(userDataDir, 'Local State');
+      if (fs.existsSync(localStatePath)) {
+        const state = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+        if (state?.profile?.info_cache) {
+          let changed = false;
+          for (const prof of Object.values(state.profile.info_cache)) {
+            if (prof.exit_type !== 'Normal') {
+              prof.exit_type = 'Normal';
+              changed = true;
+            }
+          }
+          if (changed) fs.writeFileSync(localStatePath, JSON.stringify(state));
+        }
+      }
+    } catch (err) {
+      logger.warn(`[fixExitType] 修改 Local State 失败: ${err.message}`);
+    }
   }
 
   // 从磁盘加载上次保存的窗口位置和尺寸

@@ -85,12 +85,6 @@ const TEMPLATES = [
         all     : false,
       },
       {
-        type    : 'mute-video',
-        selector: 'video',
-        mute    : true,
-        all     : false,
-      },
-      {
         type: 'dwell',
       },
     ],
