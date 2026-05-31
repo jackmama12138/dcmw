@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-    <div class="px-5 py-3 border-b border-gray-800">
+  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-200">
       <h2 class="text-sm font-semibold">发布任务</h2>
       <p class="text-xs text-gray-600 mt-0.5">选择模板或自定义 Pipeline，指定目标 URL 和节点数量后提交</p>
     </div>
@@ -11,7 +11,7 @@
       <div class="md:col-span-2">
         <label class="block text-xs text-gray-400 mb-1">目标 URL</label>
         <input v-model="form.target_url" type="text" placeholder="https://live.douyin.com/..."
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
+          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
       </div>
 
       <!-- task_type -->
@@ -19,12 +19,12 @@
         <label class="block text-xs text-gray-400 mb-1">任务类型</label>
         <div class="flex gap-2">
           <select v-if="templates.length" v-model="form.task_type"
-            class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+            class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
             <option value="">— 自定义 Pipeline —</option>
             <option v-for="t in templates" :key="t.name" :value="t.name">{{ t.name }}</option>
           </select>
           <input v-else v-model="form.task_type" placeholder="AFK"
-            class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
+            class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
         </div>
       </div>
 
@@ -33,9 +33,9 @@
         <label class="block text-xs text-gray-400 mb-1">数量 (count)</label>
         <div class="flex gap-2">
           <input v-model.number="form.count" type="number" min="1"
-            class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
+            class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
           <button v-if="form.target_worker_id" @click="fillAllSlots"
-            class="bg-gray-700 hover:bg-gray-600 text-xs px-3 rounded-lg transition-colors whitespace-nowrap">
+            class="bg-gray-700 hover:bg-gray-100 text-xs px-3 rounded-lg transition-colors whitespace-nowrap">
             全部节点
           </button>
         </div>
@@ -45,14 +45,14 @@
       <div>
         <label class="block text-xs text-gray-400 mb-1">持续时间 (秒)</label>
         <input v-model.number="form.task_time" type="number" min="1"
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
+          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
       </div>
 
       <!-- target worker -->
       <div>
         <label class="block text-xs text-gray-400 mb-1">指定 Worker（可选）</label>
         <select v-model="form.target_worker_id"
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
           <option value="">全部 Worker</option>
           <option v-for="w in workers" :key="w.workerId" :value="w.workerId">
             {{ w.workerId }} ({{ w.slots.idle }} idle)
@@ -64,7 +64,7 @@
       <div v-if="form.target_worker_id">
         <label class="block text-xs text-gray-400 mb-1">指定 Profile（可选）</label>
         <select v-model="form.target_profile"
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
           <option value="">全部 Profile</option>
           <option v-for="p in selectedWorkerProfiles" :key="p.profileName" :value="p.profileName">
             {{ p.profileName }} ({{ p.state }})
@@ -77,16 +77,16 @@
         <label class="block text-xs text-gray-400 mb-1">Pipeline (JSON)</label>
         <textarea v-model="form.pipelineJson" rows="5"
           placeholder='[{"type":"navigate","url":"https://..."},{"type":"dwell"}]'
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500" />
+          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-400" />
       </div>
     </div>
 
     <div class="mt-5 flex items-center gap-3">
       <button @click="submit" :disabled="submitting"
-        class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+        class="bg-primary hover:bg-primary-hover text-white disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
         {{ submitting ? '提交中…' : '发布任务' }}
       </button>
-      <span v-if="msg" :class="isError ? 'text-red-400' : 'text-emerald-400'" class="text-sm">{{ msg }}</span>
+      <span v-if="msg" :class="isError ? 'text-red-500' : 'text-emerald-600'" class="text-sm">{{ msg }}</span>
     </div>
     </div>
   </div>

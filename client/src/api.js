@@ -2,6 +2,13 @@ import axios from 'axios';
 
 const http = axios.create({ baseURL: import.meta.env.VITE_SERVER_PUBLISH_URL ?? '' });
 
+// ─── action types ─────────────────────────────────────────────────────────────
+
+export async function fetchActionTypes() {
+  const { data } = await http.get('/api/action-types');
+  return data; // string[]
+}
+
 // ─── tasks ────────────────────────────────────────────────────────────────────
 
 export async function submitTask(payload) {
@@ -94,13 +101,13 @@ export async function resetActionsCode() {
 
 // ─── cookies ──────────────────────────────────────────────────────────────────
 
-export async function fetchCookies() {
-  const { data } = await http.get('/api/cookies');
+export async function fetchCookies(signal) {
+  const { data } = await http.get('/api/cookies', { signal });
   return data;
 }
 
-export async function fetchScreenshots() {
-  const { data } = await http.get('/api/screenshots');
+export async function fetchScreenshots(signal) {
+  const { data } = await http.get('/api/screenshots', { signal });
   return data;
 }
 
@@ -118,8 +125,8 @@ export async function fetchCaptures(taskId) {
 
 // ─── ranklist ─────────────────────────────────────────────────────────────────
 
-export async function fetchRanklist() {
-  const { data } = await http.get('/api/ranklist');
+export async function fetchRanklist(signal) {
+  const { data } = await http.get('/api/ranklist', { signal });
   return data;
 }
 

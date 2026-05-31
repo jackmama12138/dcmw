@@ -1,29 +1,29 @@
 <template>
-  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-    <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <h2 class="text-sm font-semibold">截图查看</h2>
-        <span v-if="allShots.length" class="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+        <span v-if="allShots.length" class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
           {{ filtered.length }} 张
         </span>
       </div>
       <button @click="load" :disabled="loading"
-        class="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-3 py-1 rounded font-medium transition-colors">
+        class="text-xs bg-primary hover:bg-primary-hover text-white disabled:opacity-50 px-3 py-1 rounded font-medium transition-colors">
         {{ loading ? '加载中…' : '刷新' }}
       </button>
     </div>
 
     <!-- filters -->
-    <div class="px-5 py-2.5 border-b border-gray-800 flex items-center gap-3">
+    <div class="px-5 py-2.5 border-b border-gray-200 flex items-center gap-3">
       <input v-model="filterWorker" placeholder="按 Worker 搜索"
-        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500 w-44" />
+        class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400 w-44" />
       <select v-model="filterProfile"
-        class="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500">
+        class="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400">
         <option value="">全部 Profile</option>
         <option v-for="p in profiles" :key="p" :value="p">{{ p }}</option>
       </select>
       <button v-if="filterWorker || filterProfile" @click="filterWorker=''; filterProfile=''"
-        class="text-xs text-gray-600 hover:text-gray-300 transition-colors">清除</button>
+        class="text-xs text-gray-600 hover:text-gray-800 transition-colors">清除</button>
     </div>
 
     <!-- grid -->
@@ -34,14 +34,14 @@
       <div v-else-if="!filtered.length" class="text-sm text-gray-600 text-center py-12">无匹配截图</div>
       <div v-else class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
         <div v-for="s in paged" :key="s.url"
-          class="bg-gray-800 border border-gray-800 rounded-xl overflow-hidden cursor-pointer group hover:border-indigo-600/50 transition-colors"
+          class="bg-white border border-gray-200 rounded-xl overflow-hidden cursor-pointer group hover:border-indigo-600/50 transition-colors"
           @click="preview = s">
-          <div class="relative overflow-hidden bg-gray-950" style="height:100px">
+          <div class="relative overflow-hidden bg-gray-100" style="height:100px">
             <img :src="s.url" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
           </div>
           <div class="px-2.5 py-2 text-xs">
             <div class="text-gray-500 font-mono truncate" :title="s.worker_id">{{ s.worker_id || '—' }}</div>
-            <div class="text-indigo-300 font-mono truncate mt-0.5">{{ s.profile }}</div>
+            <div class="text-blue-600 font-mono truncate mt-0.5">{{ s.profile }}</div>
             <div class="text-gray-600 mt-0.5">{{ formatTime(s.timestamp) }}</div>
           </div>
         </div>
@@ -50,18 +50,18 @@
 
     <!-- pagination -->
     <div v-if="totalPages > 1"
-      class="flex items-center justify-between px-5 py-2 border-t border-gray-800 text-xs text-gray-600">
+      class="flex items-center justify-between px-5 py-2 border-t border-gray-200 text-xs text-gray-600">
       <span>第 {{ page }} / {{ totalPages }} 页，共 {{ filtered.length }} 张</span>
       <div class="flex gap-1">
         <button @click="page--" :disabled="page === 1"
-          class="px-2 py-1 rounded border border-gray-800 hover:border-gray-600 disabled:opacity-30">‹</button>
+          class="px-2 py-1 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-30">‹</button>
         <button v-for="p in pageRange" :key="p" @click="page = p"
           :class="['px-2.5 py-1 rounded border transition-colors',
-            p === page ? 'border-indigo-600 bg-indigo-600/20 text-indigo-300' : 'border-gray-800 hover:border-gray-600']">
+            p === page ? 'border-indigo-600 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-gray-200']">
           {{ p }}
         </button>
         <button @click="page++" :disabled="page === totalPages"
-          class="px-2 py-1 rounded border border-gray-800 hover:border-gray-600 disabled:opacity-30">›</button>
+          class="px-2 py-1 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-30">›</button>
       </div>
     </div>
 
@@ -74,10 +74,10 @@
         <img :src="preview.url" class="w-full rounded-xl shadow-2xl" />
         <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
           <span class="font-mono text-gray-500">{{ preview.worker_id }}</span>
-          <span class="font-mono text-indigo-400 mx-3">{{ preview.profile }}</span>
+          <span class="font-mono text-blue-600 mx-3">{{ preview.profile }}</span>
           <div class="flex items-center gap-3 flex-shrink-0">
             <span>{{ formatTime(preview.timestamp) }}</span>
-            <a :href="preview.url" target="_blank" class="text-indigo-400 hover:text-indigo-300 transition-colors">↗ 新标签</a>
+            <a :href="preview.url" target="_blank" class="text-blue-600 hover:text-blue-600 transition-colors">↗ 新标签</a>
           </div>
         </div>
       </div>
@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { fetchScreenshots } from '../api.js';
 
 const PAGE_SIZE = 50;
@@ -120,16 +120,22 @@ const pageRange  = computed(() => {
 
 watch(filtered, () => { page.value = 1; });
 
+let abortCtrl;
 onMounted(load);
+onUnmounted(() => abortCtrl?.abort());
 
 async function load() {
+  abortCtrl?.abort();
+  abortCtrl = new AbortController();
+  const { signal } = abortCtrl;
   loading.value = true;
   try {
-    allShots.value = await fetchScreenshots();
+    const data = await fetchScreenshots(signal);
+    if (!signal.aborted) allShots.value = data;
   } catch {
-    allShots.value = [];
+    if (!signal.aborted) allShots.value = [];
   } finally {
-    loading.value = false;
+    if (!signal.aborted) loading.value = false;
   }
 }
 

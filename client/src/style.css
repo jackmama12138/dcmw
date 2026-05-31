@@ -2,7 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-page:    #f2f3f5;
+  --bg-card:    #ffffff;
+  --bg-input:   #f2f3f5;
+  --bd-color:   #e5e6eb;
+  --tx-1:       #1d2129;
+  --tx-2:       #4e5969;
+  --tx-3:       #86909c;
+  --tx-4:       #c9cdd4;
+  --primary:    #165dff;
+  --success:    #00b42a;
+  --warning:    #ff7d00;
+  --danger:     #f53f3f;
+  --idle-block: #c9cdd4;
+}
+
 html, body, #app {
-  background-color: #030712;
-  min-height: 100vh;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-page);
+  color: var(--tx-1);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
 }

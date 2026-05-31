@@ -1,61 +1,59 @@
 <template>
-  <div class="flex min-h-screen bg-gray-950 text-gray-100">
+  <div style="display:flex; min-height:100vh; background:var(--bg-page); color:var(--tx-1)">
 
     <!-- sidebar -->
-    <aside class="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col">
-      <!-- logo -->
-      <div class="h-14 flex items-center px-5 border-b border-gray-800">
-        <span class="text-indigo-400 font-bold text-base tracking-widest">DCMW</span>
-        <span class="ml-2 text-gray-600 text-xs font-mono">v2</span>
+    <aside style="width:200px; flex-shrink:0; border-right:1px solid var(--bd-color); background:var(--bg-card); display:flex; flex-direction:column">
+      <div style="height:56px; display:flex; align-items:center; padding:0 20px; border-bottom:1px solid var(--bd-color)">
+        <span style="color:var(--primary); font-weight:700; font-size:15px; letter-spacing:2px">DCMW</span>
+        <span style="margin-left:6px; font-size:11px; color:var(--tx-4); font-family:monospace">v2</span>
       </div>
 
-      <!-- nav -->
-      <nav class="flex-1 py-3 space-y-0.5 px-2">
+      <nav style="flex:1; padding:8px 6px; display:flex; flex-direction:column; gap:2px">
         <button v-for="tab in TABS" :key="tab.id" @click="activeTab = tab.id"
-          :class="['w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left',
+          :style="[
+            'width:100%; display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:6px; font-size:13px; transition:all .15s; text-align:left; border:none; cursor:pointer',
             activeTab === tab.id
-              ? 'bg-indigo-600/20 text-indigo-300 font-medium'
-              : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60']">
-          <span class="text-base leading-none w-5 text-center select-none">{{ tab.icon }}</span>
+              ? 'background:#e8f0fe; color:var(--primary); font-weight:500'
+              : 'background:transparent; color:var(--tx-2)'
+          ]"
+          @mouseover="e => { if(activeTab !== tab.id) e.currentTarget.style.background='#f2f3f5' }"
+          @mouseleave="e => { if(activeTab !== tab.id) e.currentTarget.style.background='transparent' }">
+          <span style="font-size:13px; width:18px; text-align:center; flex-shrink:0">{{ tab.icon }}</span>
           {{ tab.label }}
         </button>
       </nav>
 
-      <!-- footer -->
-      <div class="px-5 py-3 border-t border-gray-800">
-        <div class="flex items-center gap-2">
-          <span :class="wsOnline ? 'bg-emerald-500' : 'bg-red-500'"
-            class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
-          <span class="text-xs text-gray-600">{{ wsOnline ? `${onlineWorkers} worker online` : 'offline' }}</span>
-        </div>
+      <div style="padding:10px 16px; border-top:1px solid var(--bd-color); display:flex; align-items:center; gap:6px">
+        <span :style="wsOnline ? 'background:var(--success)' : 'background:var(--danger)'"
+          style="width:6px; height:6px; border-radius:50%; flex-shrink:0"></span>
+        <span style="font-size:11px; color:var(--tx-3)">{{ wsOnline ? `${onlineWorkers} worker 在线` : '离线' }}</span>
       </div>
     </aside>
 
     <!-- main -->
-    <div class="flex-1 flex flex-col min-w-0">
-      <!-- topbar -->
-      <header class="h-14 border-b border-gray-800 flex items-center justify-between px-6 flex-shrink-0">
+    <div style="flex:1; display:flex; flex-direction:column; min-width:0">
+      <header style="height:56px; border-bottom:1px solid var(--bd-color); background:var(--bg-card); display:flex; align-items:center; justify-content:space-between; padding:0 24px; flex-shrink:0">
         <div>
-          <span class="font-semibold text-sm">{{ currentTab?.label }}</span>
-          <span class="text-gray-600 text-xs ml-2">{{ currentTab?.desc }}</span>
+          <span style="font-weight:600; font-size:14px">{{ currentTab?.label }}</span>
+          <span style="margin-left:8px; font-size:12px; color:var(--tx-3)">{{ currentTab?.desc }}</span>
         </div>
-        <div class="flex items-center gap-3 text-xs text-gray-600">
+        <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--tx-3)">
           <span>{{ busyNodes }} running · {{ idleNodes }} idle</span>
           <button @click="refresh"
-            class="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors border border-gray-800 rounded-lg px-2.5 py-1">
+            style="display:flex; align-items:center; gap:4px; color:var(--tx-3); border:1px solid var(--bd-color); border-radius:6px; padding:3px 10px; font-size:12px; background:transparent; cursor:pointer; transition:all .15s"
+            @mouseover="e => e.currentTarget.style.borderColor='var(--primary)'"
+            @mouseleave="e => e.currentTarget.style.borderColor='var(--bd-color)'">
             ↺ 刷新
           </button>
         </div>
       </header>
 
-      <!-- content -->
-      <main class="flex-1 overflow-y-auto p-6">
+      <main style="flex:1; overflow-y:auto; padding:20px; background:var(--bg-page)">
         <Dashboard       v-if="activeTab === 'dashboard'"   :workers="workers" @refresh="refresh" />
         <TaskSubmit      v-if="activeTab === 'submit'"      :workers="workers" @submitted="refresh" />
         <TemplateManager v-if="activeTab === 'templates'" />
         <TaskList        v-if="activeTab === 'tasks'"
-          :tasks="tasks"
-          :workers="workers"
+          :tasks="tasks" :workers="workers"
           @stop="stopTask"
           @ranklist-check="doRanklistCheck"
           @screenshot-take="doScreenshotTake" />
@@ -94,10 +92,10 @@ const TABS = [
   { id: 'actions',     label: 'Actions',  icon: '⌥', desc: '自定义 Worker 脚本' },
 ];
 
-const activeTab        = ref('dashboard');
-const tasks            = ref([]);
-const workers          = ref([]);
-const captureTaskId    = ref('');
+const activeTab     = ref('dashboard');
+const tasks         = ref([]);
+const workers       = ref([]);
+const captureTaskId = ref('');
 
 const currentTab    = computed(() => TABS.find(t => t.id === activeTab.value));
 const onlineWorkers = computed(() => workers.value.filter(w => w.connected).length);
@@ -114,11 +112,6 @@ async function refresh() {
 
 async function stopTask(taskId) {
   try { await apiStop(taskId); await refresh(); } catch (err) { alert(err.message); }
-}
-
-function openCaptures(taskId) {
-  captureTaskId.value = taskId;
-  activeTab.value = 'captures';
 }
 
 function getRunningSlots(task) {
@@ -143,7 +136,28 @@ async function doScreenshotTake(task) {
   activeTab.value = 'screenshots';
 }
 
-let timer;
-onMounted(() => { refresh(); timer = setInterval(refresh, 10_000); });
-onUnmounted(() => clearInterval(timer));
+let es;
+onMounted(() => {
+  refresh(); // 先拉一次全量，保证页面初始数据完整
+
+  const sseUrl = (import.meta.env.VITE_SERVER_PUBLISH_URL ?? '') + '/api/events';
+  es = new EventSource(sseUrl);
+
+  es.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'tasks' || msg.type === 'all') {
+      fetchTasks().then(v => { tasks.value = v; }).catch(() => {});
+    }
+    if (msg.type === 'workers' || msg.type === 'all') {
+      fetchWorkers().then(v => { workers.value = v; }).catch(() => {});
+    }
+  };
+
+  // EventSource 内置指数退避重连，这里只在控制台记录断线事件
+  es.onerror = () => {
+    // 浏览器会自动重连；重连成功后 Gateway 推 initial 'all' 事件补全数据
+  };
+});
+onUnmounted(() => { es?.close(); es = null; });
 </script>

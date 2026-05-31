@@ -15,12 +15,17 @@ function safeName(raw) {
 }
 
 // 合法的 pipeline 动作类型白名单
+// 与 worker/src/actions.js 的 ACTION_MAP 保持同步
+// 新增或删除动作时，worker actions.js 和此处必须同时更新
 const VALID_ACTION_TYPES = new Set([
-  'navigate','reload',
-  'wait','dwell',
-  'click','dblclick','hover','fill','scroll','mousemove',
-  'rtcookie','screenshot','antidetect','pause-video','mute-video','wait-for','hover-capture','intercept',
-  'eval','run-code','get-cookies',
+  'navigate', 'reload',
+  'wait', 'dwell',
+  'click', 'dblclick', 'hover', 'fill', 'scroll', 'mousemove',
+  'screenshot', 'antidetect',
+  'pause-video', 'mute-video',
+  'wait-for', 'hover-capture',
+  'intercept',
+  'eval', 'run-code',
   'close',
 ]);
 
@@ -44,9 +49,26 @@ function validatePipeline(pipeline) {
   return null;
 }
 
+const sseBus = require('./sse-bus');
+
 // 创建并返回 Express Router，注册所有 API 路由
 function createRouter({ taskStore, registry, scheduler }) {
   const router = Router();
+
+  // 返回合法 pipeline 动作类型列表，前端用于构建编辑器选项
+  router.get('/api/action-types', (_req, res) => {
+    res.json([...VALID_ACTION_TYPES]);
+  });
+
+  // ─── SSE 推送端点 ─────────────────────────────────────────────────────────
+  // Client 连接后立即收到全量快照，后续靠 sseBus 推送增量通知
+  router.get('/api/events', (req, res) => {
+    sseBus.addClient(req, res);
+    // 连接建立后立即推一次全量，让刚打开或重连的页面立刻同步数据
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'all' })}\n\n`);
+    }
+  });
 
   // ─── 提交任务 ─────────────────────────────────────────────────────────────
 
@@ -119,6 +141,7 @@ function createRouter({ taskStore, registry, scheduler }) {
 
     logger.info(`任务已添加: ${task.task_id} 模板=${templateName ?? '—'} 数量=${task.count} url=${task.target_url}`);
     scheduler.dispatch();
+    sseBus.notifyTasks();
     return res.status(201).json({ ok: true, task });
   });
 
@@ -138,6 +161,7 @@ function createRouter({ taskStore, registry, scheduler }) {
       registry.markIdle(worker_id, profileName); // 立即释放，允许接受下一个任务
     }
     logger.info(`停止 Worker [${worker_id}]: 共停止 ${busySlots.length} 个节点`);
+    sseBus.notifyAll();
     return res.json({ ok: true, stopped: busySlots.length });
   });
 
@@ -155,6 +179,7 @@ function createRouter({ taskStore, registry, scheduler }) {
     registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
     registry.markIdle(worker_id, profile); // 立即释放
     logger.info(`停止节点 [${worker_id}:${profile}]`);
+    sseBus.notifyAll();
     return res.json({ ok: true });
   });
 
@@ -192,6 +217,7 @@ function createRouter({ taskStore, registry, scheduler }) {
     }
 
     logger.info(`强制停止任务 ${taskId}`);
+    sseBus.notifyAll();
     return res.json({ ok: true, task });
   });
 
@@ -209,6 +235,7 @@ function createRouter({ taskStore, registry, scheduler }) {
     }
 
     logger.info(`按 URL 停止 [${target_url}]: 停止 ${slots.length} 个节点，涉及 ${taskIds.length} 个任务`);
+    sseBus.notifyAll();
     return res.json({ ok: true, stopped: slots.length, tasks: taskIds });
   });
 

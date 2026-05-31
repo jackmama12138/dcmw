@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const { URL } = require('url');
 const logger = require('./logger');
+const sseBus = require('./sse-bus');
 
 // 创建 WebSocket 服务器并挂载到已有的 HTTP 服务器上
 function createWsServer(httpServer, { registry, taskStore, scheduler }) {
@@ -77,6 +78,8 @@ async function cleanupWorker(workerId, ws, { registry, taskStore, scheduler }) {
     `[${workerId}] 已断开 — 释放 ${busySlots.length} 个进行中的槽位`
   );
 
+  sseBus.notifyAll();
+
   if (busySlots.length > 0) {
     scheduler.dispatch();
   }
@@ -106,6 +109,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
         logger.info(`[${workerId}] 已推送当前动作代码`);
       }
 
+      sseBus.notifyWorkers();
       scheduler.dispatch();
       break;
     }
@@ -113,6 +117,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
     case 'heartbeat':
       // 更新心跳时间戳并记录各 Profile 的当前页面信息
       registry.updateHeartbeat(workerId, msg.profiles ?? {});
+      sseBus.notifyWorkers();
       break;
 
     case 'task_result': {
@@ -139,6 +144,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
         `[${workerId}:${profile}] 任务 ${task_id} ${status} — ${task.completed + task.failed}/${task.count} 已完成`
       );
 
+      sseBus.notifyAll();
       scheduler.dispatch();
       break;
     }
@@ -160,6 +166,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
         await taskStore.atomicDecrementRunning(String(task_id));
       }
 
+      sseBus.notifyAll();
       setTimeout(() => scheduler.dispatch(), 1500);
       break;
     }

@@ -32,13 +32,19 @@ async function httpNotify(profile, status, targetUrl, taskId) {
 function runTask(context, task, { onComplete, pool }) {
   // 构建任务控制器对象
   const ctrl = {
-    stopped: false,
-    task_time  : Math.max(0, Number(task.task_time) || 0),
-    task_id    : task.task_id,
-    profile    : task.profile,
-    target_url : task.target_url ?? '',   // 心跳上报用，gateway 重启后恢复映射
+    stopped   : false,
+    task_time : Math.max(0, Number(task.task_time) || 0),
+    task_id   : task.task_id,
+    profile   : task.profile,
+    target_url: task.target_url ?? '',  // 心跳上报用，gateway 重启后恢复映射
+    _cleanups : [],
+
     stop() { this.stopped = true; },
     updateTaskTime(seconds) { this.task_time = Math.max(0, seconds); },
+
+    // 注册任务级清理函数（page.route / page.on 等），任务结束时统一执行
+    addCleanup(fn) { this._cleanups.push(fn); },
+
     // 由 close pipeline 动作调用，告知 chrome-pool 此次关闭是主动行为
     markReleasing() {
       const slot = pool?.slots.get(task.profile);
@@ -89,8 +95,12 @@ async function _execute(context, task, { onComplete, ctrl, cleanup }) {
   async function settle(result) {
     if (settled) return;
     settled = true;
-    ctrl.stopped = true; // 通知所有轮询器（rtcookie stopPoller、dwell tick）自行清理
-    cleanup?.();         // 移除 context 级别的监听器，防止懒关闭复用时叠加
+    ctrl.stopped = true;
+    // 先执行动作注册的清理钩子（page.route / page.on 等），再清理 context 监听器
+    for (const fn of ctrl._cleanups) {
+      try { await fn(); } catch {}
+    }
+    cleanup?.();
     await httpNotify(result.profile, result.status, result.target_url, result.task_id);
     await onComplete(result);
   }
@@ -107,7 +117,29 @@ async function _execute(context, task, { onComplete, ctrl, cleanup }) {
       if (settled || ctrl.stopped) break;
       const step = pipeline[i];
       logger.info(`${tag} 执行步骤 ${i + 1}/${pipeline.length}: ${step?.type}`);
-      await actionsLoader.runStep(context, step, ctrl);
+
+      const result = await actionsLoader.runStep(context, step, ctrl);
+
+      // on_fail 处理：仅当动作返回 { ok: false } 时生效
+      // 'continue'（默认）→ 跳过本步骤继续执行
+      // 'stop'           → 以 success 结束任务（预期中止）
+      // 'error'          → 以 error 结束任务（意外失败）
+      if (result && result.ok === false) {
+        const onFail = step.on_fail ?? 'continue';
+        logger.warn(`${tag} 步骤 ${i + 1}(${step.type}) 失败: ${result.reason ?? 'unknown'} — on_fail=${onFail}`);
+        if (onFail === 'stop') {
+          clearTimeout(safetyHandle);
+          await settle({ task_id, profile, status: 'success', target_url });
+          return;
+        }
+        if (onFail === 'error') {
+          clearTimeout(safetyHandle);
+          await settle({ task_id, profile, status: 'error', target_url,
+            error: `step[${i + 1}:${step.type}] ${result.reason ?? 'failed'}` });
+          return;
+        }
+        // 'continue': 继续下一步，不中断
+      }
     }
 
     clearTimeout(safetyHandle);

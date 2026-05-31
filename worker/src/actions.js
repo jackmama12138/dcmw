@@ -1,6 +1,12 @@
-const logger = require('./logger');
+const logger   = require('./logger');
+const reporter = require('./reporter');
 
-// ─── 工具函数 ─────────────────────────────────────────────────────────────────
+// ─── 工具函数（导出供插件复用）────────────────────────────────────────────────
+
+// 将数值限制在 [min, max] 范围内
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
 // 获取或创建当前 context 中的第一个页面
 async function getOrCreatePage(context) {
@@ -8,58 +14,47 @@ async function getOrCreatePage(context) {
   return pages.length > 0 ? pages[0] : context.newPage();
 }
 
-// 将数值限制在 [min, max] 范围内
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-// 模拟人类鼠标移动轨迹（贝塞尔曲线）
+// 模拟人类鼠标移动轨迹（贝塞尔曲线插值 + 随机抖动）
 async function humanMouseMove(page, fromX, fromY, toX, toY) {
   const steps = 8 + Math.floor(Math.random() * 6);
   for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
+    const t  = i / steps;
     const cx = (fromX + toX) / 2 + (Math.random() - 0.5) * 40;
     const cy = (fromY + toY) / 2 + (Math.random() - 0.5) * 40;
-    const x = (1 - t) * (1 - t) * fromX + 2 * (1 - t) * t * cx + t * t * toX;
-    const y = (1 - t) * (1 - t) * fromY + 2 * (1 - t) * t * cy + t * t * toY;
+    const x  = (1 - t) * (1 - t) * fromX + 2 * (1 - t) * t * cx + t * t * toX;
+    const y  = (1 - t) * (1 - t) * fromY + 2 * (1 - t) * t * cy + t * t * toY;
     await page.mouse.move(x, y);
   }
 }
 
 // 白名单 getBy* 方法集合，集合外的方法一律拒绝
 const GETBY_METHODS = new Set([
-  'getByText','getByRole','getByLabel','getByPlaceholder',
-  'getByAltText','getByTestId','getByTitle',
+  'getByText', 'getByRole', 'getByLabel', 'getByPlaceholder',
+  'getByAltText', 'getByTestId', 'getByTitle',
 ]);
 
 // 禁止在 getBy* 参数中出现的危险关键词
 const DANGEROUS_ARGS = /\b(require|import|process|global|eval|Function|setTimeout|setInterval|constructor|__proto__|prototype)\b/;
 
-// 将选择器字符串或 getBy* 表达式解析为 Playwright Locator
+// 将 CSS 选择器字符串或 getBy* 表达式解析为 Playwright Locator
+// 统一接受 selector（首选）或 string（兼容别名）
 function resolveLocator(page, selectorOrExpr) {
   const expr = selectorOrExpr.trim();
   const getByMatch = expr.match(/^(getBy\w+)\((.+)\)$/s);
   if (!getByMatch) return page.locator(expr);
 
   const [, method, rawArgs] = getByMatch;
-
-  if (!GETBY_METHODS.has(method)) {
-    throw new Error(`resolveLocator: 未知方法 "${method}"`);
-  }
-  if (DANGEROUS_ARGS.test(rawArgs)) {
-    throw new Error(`resolveLocator: "${method}" 的参数中包含禁止关键词`);
-  }
+  if (!GETBY_METHODS.has(method)) throw new Error(`resolveLocator: 未知方法 "${method}"`);
+  if (DANGEROUS_ARGS.test(rawArgs))  throw new Error(`resolveLocator: 参数中包含禁止关键词`);
 
   let args;
   try {
-    // "use strict" 阻止访问 caller/arguments；加上上方的黑名单，仅允许字面量
     // eslint-disable-next-line no-new-func
     args = new Function('"use strict"; return [' + rawArgs + ']')();
   } catch {
     throw new Error(`resolveLocator: 无法解析 "${expr}" 的参数`);
   }
 
-  // 校验每个参数只能是基本类型或纯对象，不允许函数或类实例
   for (const arg of args) {
     const t = typeof arg;
     if (t === 'function' || (t === 'object' && arg !== null && Object.getPrototypeOf(arg) !== Object.prototype)) {
@@ -79,38 +74,174 @@ function resolveLocator(page, selectorOrExpr) {
   }
 }
 
+// 从 params 中提取选择器，selector 优先，string 为兼容别名
+function pickSelector(params) {
+  return params.selector ?? params.string ?? null;
+}
+
+// 渐进退避延迟表（对齐 Playwright 内部重试策略）
+const RETRY_DELAYS = [0, 20, 100, 100, 500];
+
+// 定位元素并等待其可见，按渐进退避策略重试直到 timeout 耗尽
+// 返回 { locator, selector } 或 { error: reason, selector }
+async function resolveElement(page, params, actionName) {
+  const expr = pickSelector(params);
+  if (!expr || typeof expr !== 'string') {
+    return { error: 'no_selector', selector: null };
+  }
+
+  const timeout  = clamp(params.timeout ?? 5000, 500, 15_000);
+  const locator  = resolveLocator(page, expr);
+  const deadline = Date.now() + timeout;
+  let attempt    = 0;
+
+  while (true) {
+    // 退避等待（第一次 delay=0，立即尝试）
+    const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+
+    // 超时检查
+    if (Date.now() >= deadline) {
+      logger.warn(`${actionName}: "${expr}" 在 ${timeout}ms 内未出现`);
+      return { error: 'not_found', selector: expr };
+    }
+
+    try {
+      // 剩余时间内等待元素可见
+      const remaining = deadline - Date.now();
+      await locator.waitFor({ state: 'visible', timeout: Math.max(remaining, 50) });
+      return { locator, selector: expr };
+    } catch (err) {
+      const msg = err.message ?? '';
+      // 元素已从 DOM 移除（不可恢复，直接返回）
+      if (msg.includes('detached') || msg.includes('destroyed')) {
+        logger.warn(`${actionName}: "${expr}" 已从 DOM 移除`);
+        return { error: 'not_connected', selector: expr };
+      }
+      // timeout 耗尽
+      if (Date.now() >= deadline) {
+        logger.warn(`${actionName}: "${expr}" 在 ${timeout}ms 内未出现`);
+        return { error: 'not_found', selector: expr };
+      }
+      attempt++;
+    }
+  }
+}
+
+// 模拟人类点击，按 Playwright actionability 顺序执行检查：
+//   1. enabled   — 元素未被禁用
+//   2. stable    — 连续两次 boundingBox 位置一致（50ms 间隔）
+//   3. viewport  — 中心点在视口范围内
+//   4. 贝塞尔鼠标移动 + 随机偏移点击
+// 返回 { ok, box } 或 { ok: false, reason }
+async function humanClick(page, locator, dblClick = false) {
+  // ① enabled 检查
+  let enabled;
+  try { enabled = await locator.isEnabled(); } catch { enabled = false; }
+  if (!enabled) {
+    logger.warn('click: 元素处于禁用状态');
+    return { ok: false, reason: 'not_enabled' };
+  }
+
+  // ② stable 检查：采样两次 boundingBox，间隔 50ms，位置变化超过 2px 视为不稳定
+  let box1;
+  try { box1 = await locator.boundingBox(); } catch { box1 = null; }
+  if (!box1) {
+    logger.warn('click: 元素无边界框（尺寸为零或不可见）');
+    return { ok: false, reason: 'no_bbox' };
+  }
+
+  await new Promise(r => setTimeout(r, 50));
+
+  let box;
+  try { box = await locator.boundingBox(); } catch { box = null; }
+  if (!box) {
+    logger.warn('click: 采样期间元素消失（已从 DOM 移除）');
+    return { ok: false, reason: 'not_connected' };
+  }
+
+  const moved = Math.abs(box.x - box1.x) > 2 || Math.abs(box.y - box1.y) > 2 ||
+                Math.abs(box.width - box1.width) > 2 || Math.abs(box.height - box1.height) > 2;
+  if (moved) {
+    // 元素仍在移动，使用最新位置但记录警告（动画中元素，继续执行）
+    logger.warn('click: 元素位置不稳定，使用最新坐标继续');
+  }
+
+  // ③ viewport 检查：中心点必须在视口内
+  const vs  = page.viewportSize() ?? { width: 1280, height: 720 };
+  const cx  = box.x + box.width  / 2;
+  const cy  = box.y + box.height / 2;
+  if (cx < 0 || cy < 0 || cx > vs.width || cy > vs.height) {
+    logger.warn(`click: 元素中心点 (${cx.toFixed(0)}, ${cy.toFixed(0)}) 超出视口 ${vs.width}×${vs.height}`);
+    return { ok: false, reason: 'not_in_viewport' };
+  }
+
+  // ④ 贝塞尔移动 + 随机微偏移点击
+  const toX = cx + (Math.random() - 0.5) * 4;
+  const toY = cy + (Math.random() - 0.5) * 4;
+
+  await humanMouseMove(page, Math.random() * vs.width, Math.random() * vs.height, toX, toY);
+  await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 120)));
+
+  try {
+    if (dblClick) {
+      await page.mouse.dblclick(toX, toY);
+    } else {
+      await page.mouse.click(toX, toY);
+    }
+  } catch (err) {
+    logger.warn(`click: 鼠标事件失败 — ${err.message}`);
+    return { ok: false, reason: 'click_failed' };
+  }
+
+  return { ok: true, box };
+}
+
 // ─── 动作实现 ─────────────────────────────────────────────────────────────────
 
-// 导航到指定 URL，waitUntil 参数经白名单校验
+// 导航到指定 URL
+// waitUntil: 'commit'(默认) | 'load' | 'domcontentloaded' | 'networkidle'
+// 返回 { ok, url } 或 { ok: false, reason, error }
 async function navigate(context, { url, waitUntil = 'commit' }) {
-  if (!url || typeof url !== 'string') throw new Error(`navigate: 无效的 url "${url}"`);
-  const VALID = ['commit', 'load', 'domcontentloaded', 'networkidle'];
+  if (!url || typeof url !== 'string') {
+    return { ok: false, reason: 'invalid_url', error: `无效的 url "${url}"` };
+  }
+  const VALID   = ['commit', 'load', 'domcontentloaded', 'networkidle'];
   const safeWait = VALID.includes(waitUntil) ? waitUntil : 'commit';
-  const page = await getOrCreatePage(context);
-  await page.goto(url, { waitUntil: safeWait, timeout: 30_000 });
-  return page;
+  const page    = await getOrCreatePage(context);
+  try {
+    await page.goto(url, { waitUntil: safeWait, timeout: 30_000 });
+    return { ok: true, url };
+  } catch (err) {
+    logger.warn(`navigate: 导航失败 "${url}" — ${err.message}`);
+    return { ok: false, reason: 'nav_failed', error: err.message };
+  }
 }
 
 // 刷新当前页面
+// 返回 { ok } 或 { ok: false, reason }
 async function reload(context) {
   const page = await getOrCreatePage(context);
   try {
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+    return { ok: true };
   } catch (err) {
     logger.warn(`reload: ${err.message}`);
+    return { ok: false, reason: 'reload_failed' };
   }
 }
 
-// 等待指定时长（毫秒），支持提前中断
+// 随机等待指定范围的时长（毫秒），ctrl.stopped 时提前退出
+// 参数: min（默认读环境变量 WAIT_TIME）, max
 async function wait(_context, params, ctrl) {
   const [defaultMin, defaultMax] = (process.env.WAIT_TIME ?? '3000,4000')
     .split(',').map(Number);
-  const min = params.min ?? defaultMin ?? 3000;
-  const max = params.max ?? defaultMax ?? 4000;
-  const lo = clamp(Math.min(min, max), 0, Infinity);
-  const hi = clamp(Math.max(min, max), lo, Infinity);
+  const min   = params.min ?? defaultMin ?? 3000;
+  const max   = params.max ?? defaultMax ?? 4000;
+  const lo    = clamp(Math.min(min, max), 0, Infinity);
+  const hi    = clamp(Math.max(min, max), lo, Infinity);
   const delay = lo + Math.floor(Math.random() * (hi - lo + 1));
-  const end = Date.now() + delay;
+  const end   = Date.now() + delay;
   await new Promise(resolve => {
     const tick = () => {
       if (ctrl?.stopped || Date.now() >= end) return resolve();
@@ -118,12 +249,13 @@ async function wait(_context, params, ctrl) {
     };
     tick();
   });
+  return { ok: true };
 }
 
-// 停留动作：在 ctrl.stopped 或达到 task_time 前持续等待
+// 停留动作：持续等待直到 ctrl.stopped 或达到 task_time 上限
 async function dwell(_context, _params, ctrl) {
   const maxSec = Math.max(1, Number(process.env.DWELL_MAX_SECONDS) || 72000);
-  const start = Date.now();
+  const start  = Date.now();
   await new Promise(resolve => {
     const tick = () => {
       if (!ctrl || ctrl.stopped) return resolve();
@@ -133,79 +265,100 @@ async function dwell(_context, _params, ctrl) {
     };
     tick();
   });
+  return { ok: true };
 }
 
-// 内部辅助：定位并等待元素可见，超时则返回 null
-async function _resolveElement(page, params, actionName) {
-  // 接受 { selector }（CSS）或 { string }（getBy* 表达式）
-  const expr = params.string ?? params.selector;
-  if (!expr || typeof expr !== 'string') {
-    throw new Error(`${actionName}: 需要提供 selector 或 string`);
-  }
-  const timeout = clamp(params.timeout ?? 5000, 500, 15_000);
-  const locator = resolveLocator(page, expr);
-  try {
-    await locator.waitFor({ state: 'visible', timeout });
-  } catch {
-    logger.warn(`${actionName}: "${expr}" 在 ${timeout}ms 内未出现，已跳过`);
-    return null;
-  }
-  return locator;
-}
-
-// 内部辅助：模拟人类点击（随机偏移 + 贝塞尔移动）
-async function _humanClick(page, locator, dblClick = false) {
-  let box;
-  try {
-    box = await locator.boundingBox();
-  } catch {
-    box = null;
-  }
-  if (!box) {
-    logger.warn('click: 元素无边界框（可能隐藏），已跳过');
-    return;
-  }
-  const toX = box.x + box.width / 2 + (Math.random() - 0.5) * 4;
-  const toY = box.y + box.height / 2 + (Math.random() - 0.5) * 4;
-  const vs = page.viewportSize() ?? { width: 1280, height: 720 };
-  await humanMouseMove(page, Math.random() * vs.width, Math.random() * vs.height, toX, toY);
-  await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 120)));
-  if (dblClick) {
-    await page.mouse.dblclick(toX, toY);
-  } else {
-    await page.mouse.click(toX, toY);
-  }
-}
-
-// 单击指定元素
+// 单击指定元素（人类模拟）
+// 返回 { ok, selector, box } 或 { ok: false, reason, selector }
 async function click(context, params) {
   const page = await getOrCreatePage(context);
-  const locator = await _resolveElement(page, params, 'click');
-  if (!locator) return;
-  await _humanClick(page, locator, false);
+  const { locator, error, selector } = await resolveElement(page, params, 'click');
+  if (error) return { ok: false, reason: error, selector };
+  const result = await humanClick(page, locator, false);
+  return { ...result, selector };
 }
 
-// 双击指定元素
+// 双击指定元素（人类模拟）
+// 返回 { ok, selector, box } 或 { ok: false, reason, selector }
 async function dblclick(context, params) {
   const page = await getOrCreatePage(context);
-  const locator = await _resolveElement(page, params, 'dblclick');
-  if (!locator) return;
-  await _humanClick(page, locator, true);
+  const { locator, error, selector } = await resolveElement(page, params, 'dblclick');
+  if (error) return { ok: false, reason: error, selector };
+  const result = await humanClick(page, locator, true);
+  return { ...result, selector };
 }
 
-// 悬停到指定元素上
+// 悬停到指定元素
+// 返回 { ok, selector } 或 { ok: false, reason, selector }
 async function hover(context, params) {
   const page = await getOrCreatePage(context);
-  const locator = await _resolveElement(page, params, 'hover');
-  if (!locator) return;
+  const { locator, error, selector } = await resolveElement(page, params, 'hover');
+  if (error) return { ok: false, reason: error, selector };
   try {
     await locator.hover({ timeout: 5000 });
+    return { ok: true, selector };
   } catch (err) {
     logger.warn(`hover: ${err.message}`);
+    return { ok: false, reason: 'hover_failed', selector };
+  }
+}
+
+// 填写输入框，检查顺序：visible → enabled → editable → 填写
+// mode: 'fill'（直接赋值，默认）| 'type'（逐字模拟键盘输入）
+// 返回 { ok, selector } 或 { ok: false, reason, selector }
+async function fill(context, params) {
+  const { value, mode = 'fill', delay = 50, clear = true } = params;
+  const selector = pickSelector(params);
+
+  if (!selector) return { ok: false, reason: 'no_selector' };
+  if (typeof value !== 'string') return { ok: false, reason: 'invalid_value' };
+
+  const safeValue = value.slice(0, 2000);
+  const safeDelay = clamp(Number(delay) || 0, 0, 500);
+  const page      = await getOrCreatePage(context);
+
+  // ① visible 检查（复用渐进退避）
+  const { locator, error } = await resolveElement(page, params, 'fill');
+  if (error) return { ok: false, reason: error, selector };
+
+  // ② enabled 检查
+  let enabled;
+  try { enabled = await locator.isEnabled(); } catch { enabled = false; }
+  if (!enabled) {
+    logger.warn(`fill: "${selector}" 处于禁用状态`);
+    return { ok: false, reason: 'not_enabled', selector };
+  }
+
+  // ③ editable 检查（Playwright: input/textarea/[contenteditable]，排除 readonly）
+  let editable;
+  try { editable = await locator.isEditable(); } catch { editable = true; }
+  if (!editable) {
+    logger.warn(`fill: "${selector}" 不可编辑（readonly 或非输入元素）`);
+    return { ok: false, reason: 'not_editable', selector };
+  }
+
+  // ④ 填写
+  try {
+    if (mode === 'type') {
+      await locator.click();
+      if (clear) {
+        await page.keyboard.press('Control+a');
+        await page.keyboard.press('Delete');
+      }
+      await locator.pressSequentially(safeValue, { delay: safeDelay });
+    } else {
+      await locator.fill(safeValue);
+    }
+    return { ok: true, selector };
+  } catch (err) {
+    logger.warn(`fill: 填写失败 — ${err.message}`);
+    return { ok: false, reason: 'fill_failed', selector };
   }
 }
 
 // 滚动页面或指定元素
+// 不指定 selector 则滚动整个页面
+// 返回 { ok } 或 { ok: false, reason }
 async function scroll(context, { x = 0, y = 300, selector = null }) {
   const page = await getOrCreatePage(context);
   if (selector) {
@@ -214,270 +367,160 @@ async function scroll(context, { x = 0, y = 300, selector = null }) {
     try { el = await locator.elementHandle({ timeout: 5000 }); } catch { el = null; }
     if (!el) {
       logger.warn(`scroll: 选择器 "${selector}" 未找到，已跳过`);
-      return;
+      return { ok: false, reason: 'not_found', selector };
     }
     await el.evaluate((node, { x, y }) => node.scrollBy(x, y), { x, y });
   } else {
     await page.mouse.wheel(x, y);
   }
+  return { ok: true };
 }
 
 // 将鼠标移动到绝对坐标
+// 返回 { ok } 或 { ok: false, reason }
 async function mousemove(context, { x, y }) {
   if (typeof x !== 'number' || typeof y !== 'number') {
-    throw new Error('mousemove: x 和 y（数字）是必填项');
+    return { ok: false, reason: 'invalid_coords' };
   }
   const page = await getOrCreatePage(context);
   await page.mouse.move(x, y);
+  return { ok: true };
 }
 
+// 等待指定元素出现
+// stopOnTimeout: true 时超时则停止整个任务
+// 返回 { ok, selector } 或 { ok: false, reason, selector }
+async function waitFor(context, params, ctrl) {
+  const selector = pickSelector(params);
+  if (!selector) return { ok: false, reason: 'no_selector' };
 
-// 在页面上下文中执行任意 JS 代码并返回结果
-// { code: "document.title" } 或 { code: "() => { ... }" }
-async function evalAction(context, { code }) {
-  if (!code || typeof code !== 'string') throw new Error('eval: code（字符串）是必填项');
-  const page = await getOrCreatePage(context);
-  try {
-    // 将 code 作为字符串传入，使其完全在浏览器上下文中执行，不接触 Node.js 全局
-    const result = await page.evaluate(code);
-    logger.info(`eval 结果: ${JSON.stringify(result)}`);
-    return result;
-  } catch (err) {
-    logger.warn(`eval 错误: ${err.message}`);
-  }
-}
-
-// 在 Node.js 侧执行接收 { page, context } 的 Playwright 代码片段
-// { code: "async ({ page }) => { await page.click('button') }" }
-async function runCode(context, { code }, ctrl) {
-  if (!code || typeof code !== 'string') throw new Error('run-code: code（字符串）是必填项');
-  const page = await getOrCreatePage(context);
-  try {
-    // eslint-disable-next-line no-new-func
-    const fn = new Function(`return (${code})`)();
-    await fn({ page, context, ctrl });
-  } catch (err) {
-    logger.warn(`run-code 错误: ${err.message}`);
-  }
-}
-
-// 关闭所有页面并关闭 context
-async function close(context, _params, ctrl) {
-  if (!context) return;
-  ctrl?.markReleasing();
-  // 懒关闭模式：不真正关闭 context，导航到空白页
-  // 真正的关闭由 chrome-pool 的空闲超时或进程退出负责
-  try {
-    const pages = context.pages();
-    if (pages.length > 0) await pages[0].goto('about:blank').catch(() => {});
-  } catch (err) {
-    logger.warn(`close: ${err.message}`);
-  }
-}
-
-// 拦截第一个匹配请求，提取 Cookie 后一次性上报到 gateway
-async function rtcookie(context, { url }, ctrl) {
-  if (!url || typeof url !== 'string') throw new Error('rtcookie: url 是必填项');
-
-  const page = await getOrCreatePage(context);
-  const pattern = `**${url}**`;
-  let captured = false;
-
-  const handler = async (route) => {
-    try {
-      if (!captured) {
-        const request = route.request();
-        const headers = request.headers();
-        const cookie = headers['cookie'] || '';
-        if (cookie) {
-          captured = true;
-          page.unroute(pattern, handler).catch(() => {});
-
-          // 从匹配的 URL 中提取查询参数
-          let device_id = '';
-          let user_unique_id = '';
-          try {
-            const u = new URL(request.url());
-            device_id = u.searchParams.get('device_id') || '';
-            user_unique_id = u.searchParams.get('user_unique_id') || '';
-          } catch {}
-
-          const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
-          if (base) {
-            fetch(`${base}/api/cookies`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                profile:   ctrl?.profile,
-                task_id:   ctrl?.task_id,
-                worker_id: process.env.WORKER_ID ?? '',
-                pattern:   url,
-                matched_url: request.url(),
-                cookie,
-                device_id,
-                user_unique_id,
-                user_agent: headers['user-agent'] || '',
-                timestamp: Date.now(),
-              }),
-              signal: AbortSignal.timeout(5000),
-            }).catch(err => logger.warn(`rtcookie 上报失败: ${err.message}`));
-          }
-        }
-      }
-    } finally {
-      await route.continue().catch(() => {});
-    }
-  };
-
-  await page.route(pattern, handler);
-
-  // 任务停止前若路由未触发，及时注销以防泄漏到下一个任务
-  const stopPoller = setInterval(() => {
-    if (captured || ctrl?.stopped) {
-      clearInterval(stopPoller);
-      if (!captured) page.unroute(pattern, handler).catch(() => {});
-    }
-  }, 500);
-}
-
-// 定位输入框并填入或逐字输入内容
-// 风险缓解：delay 限制在 0–500ms；value 截断到 2000 字符；使用白名单选择器
-async function fill(context, { string, value, mode = 'fill', delay = 50, clear = true }) {
-  if (!string) throw new Error('fill: string（选择器）是必填项');
-  if (typeof value !== 'string') throw new Error('fill: value 必须是字符串');
-
-  const safeValue = value.slice(0, 2000);
-  const safeDelay = clamp(Number(delay) || 0, 0, 500);
-
-  const page = await getOrCreatePage(context);
-  const locator = resolveLocator(page, string);
+  const page        = await getOrCreatePage(context);
+  const safeTimeout = clamp(Number(params.timeout) || 10000, 500, 120_000);
+  const locator     = resolveLocator(page, selector);
 
   try {
-    await locator.waitFor({ state: 'visible', timeout: 5000 });
+    await locator.waitFor({ state: 'visible', timeout: safeTimeout });
+    return { ok: true, selector };
   } catch {
-    logger.warn(`fill: "${string}" 在 5s 内未可见，已跳过`);
-    return;
+    if (params.stopOnTimeout) {
+      logger.warn(`wait-for: "${selector}" 超时，结束任务`);
+      ctrl?.stop();
+      return { ok: false, reason: 'timeout_stopped', selector };
+    }
+    logger.warn(`wait-for: "${selector}" 超时，继续执行`);
+    return { ok: false, reason: 'timeout', selector };
+  }
+}
+
+// 悬停到元素上，停留 duration 毫秒后将鼠标移走
+// 参数: selector（选择器）, duration（停留毫秒，默认1000）, exit_x/exit_y（移出坐标）
+// 返回 { ok, selector } 或 { ok: false, reason, selector }
+async function hoverCapture(context, params) {
+  const selector = pickSelector(params);
+  if (!selector) return { ok: false, reason: 'no_selector' };
+
+  const { duration = 1000, exit_x = 0, exit_y = 0 } = params;
+  const page = await getOrCreatePage(context);
+  const { locator, error } = await resolveElement(page, { selector, timeout: params.timeout }, 'hover-capture');
+  if (error) return { ok: false, reason: error, selector };
+
+  await locator.hover();
+  await new Promise(r => setTimeout(r, clamp(Number(duration) || 1000, 0, 30_000)));
+  await page.mouse.move(exit_x, exit_y).catch(() => {});
+  return { ok: true, selector };
+}
+
+// 监听响应事件并上报到 gateway（基于 page.on('response')，零 CDP 开销）
+// 底层使用 waitForResponse（EventEmitter 订阅），不启用 Fetch 拦截，不影响请求延迟
+//
+// times:   捕获次数上限（默认 1，-1 表示不限次数）
+// timeout: 每次等待超时（默认 15000ms）
+//
+// 返回 { ok: true }（立即返回，捕获异步进行）
+async function intercept(context, { url, timeout = 15000, times = 1 }, ctrl) {
+  if (!url || typeof url !== 'string') {
+    return { ok: false, reason: 'no_url' };
   }
 
-  if (mode === 'type') {
-    await locator.click();
-    if (clear) {
-      await page.keyboard.press('Control+a');
-      await page.keyboard.press('Delete');
-    }
-    await locator.pressSequentially(safeValue, { delay: safeDelay });
-  } else {
-    await locator.fill(safeValue);
+  const page        = await getOrCreatePage(context);
+  const safeTimeout = clamp(Number(timeout) || 15000, 1000, 120_000);
+  const maxTimes    = times === -1 ? Infinity : Math.max(1, Number(times) || 1);
+  let   matchCount  = 0;
+  let   cancelled   = false;
+
+  // 递归等待：每次命中后若未达上限则继续监听下一次
+  function waitOnce() {
+    page.waitForResponse(
+      r => r.url().includes(url),
+      { timeout: safeTimeout }
+    ).then(async response => {
+      if (cancelled) return;
+
+      matchCount++;
+      const matchedUrl = response.url();
+      let body;
+      try { body = await response.json(); }
+      catch { body = await response.text().catch(() => null); }
+      reporter.reportCapture(ctrl, { pattern: url, matchedUrl, body });
+
+      // 未达上限且任务未取消，继续监听
+      if (!cancelled && matchCount < maxTimes) waitOnce();
+
+    }).catch(err => {
+      if (cancelled) return; // 任务结束取消，静默处理
+
+      const msg = err.message ?? '';
+      // 页面/context 销毁属于正常生命周期（页面关闭、懒关闭导航），不算错误
+      if (msg.includes('closed') || msg.includes('destroyed') || msg.includes('Target')) return;
+      // 真正的超时：在 safeTimeout 内没有匹配到响应
+      logger.warn(`intercept: "${url}" 在 ${safeTimeout}ms 内无匹配`);
+    });
   }
+
+  waitOnce();
+
+  // 任务结束时标记取消，in-flight 的 waitForResponse 会在超时或页面关闭后自清理
+  ctrl?.addCleanup(() => { cancelled = true; });
+
+  return { ok: true };
 }
 
 // 通过 CDP 截取当前页面 JPEG 并上报到 gateway（二进制上传）
-// 风险缓解：quality 限制 20–90；fullPage 默认 false；gateway 侧防路径穿越和磁盘耗尽
+// quality: 20–90（默认60），fullPage: 是否截全页
+// 返回 { ok } 或 { ok: false, reason }
 async function screenshot(context, { fullPage = false, quality = 60 }, ctrl) {
   const safeQuality = clamp(Number(quality) || 60, 20, 90);
-  const page = await getOrCreatePage(context);
+  const page        = await getOrCreatePage(context);
 
   let buffer;
-  // CDP 直接截图：不等字体加载，直接抓当前帧
   try {
     const cdp = await context.newCDPSession(page);
     const { data } = await Promise.race([
-      cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: safeQuality }),
+      cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: safeQuality, captureBeyondViewport: fullPage }),
       new Promise((_, r) => setTimeout(() => r(new Error('CDP 超时')), 10_000)),
     ]);
     buffer = Buffer.from(data, 'base64');
     await cdp.detach().catch(() => {});
   } catch (err) {
     const msg = err.message || '';
-    if (msg.includes('closed') || msg.includes('destroyed')) return;
-    logger.warn(`screenshot: 截图失败: ${msg.split('\n')[0]}`);
-    return;
+    if (msg.includes('closed') || msg.includes('destroyed')) return { ok: false, reason: 'context_closed' };
+    logger.warn(`screenshot: 截图失败 — ${msg.split('\n')[0]}`);
+    return { ok: false, reason: 'capture_failed' };
   }
 
-  const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
-  if (!base) return;
-
-  fetch(`${base}/api/screenshots`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'image/jpeg',
-      'X-Task-Id':   String(ctrl?.task_id ?? ''),
-      'X-Profile':   String(ctrl?.profile ?? ''),
-      'X-Worker-Id': String(process.env.WORKER_ID ?? ''),
-      'X-Timestamp': String(Date.now()),
-    },
-    body: buffer,
-    signal: AbortSignal.timeout(15000),
-  }).catch(err => logger.warn(`screenshot 上报失败: ${err.message}`));
-}
-
-// 悬停元素、停留指定时间后将鼠标移走
-async function hoverCapture(context, { string, dwell = 1000, exit_x = 0, exit_y = 0 }) {
-  if (!string) throw new Error('hover-capture: string（选择器）是必填项');
-
-  const page = await getOrCreatePage(context);
-  const locator = resolveLocator(page, string);
-
-  try {
-    await locator.waitFor({ state: 'visible', timeout: 5000 });
-  } catch {
-    logger.warn(`hover-capture: "${string}" 在 5s 内未可见，已跳过`);
-    return;
-  }
-
-  await locator.hover();
-  await new Promise(r => setTimeout(r, clamp(Number(dwell) || 1000, 0, 30_000)));
-  await page.mouse.move(exit_x, exit_y).catch(() => {});
-}
-
-// 内部辅助：将拦截到的响应数据上报到 gateway
-async function _reportCapture(ctrl, { pattern, matchedUrl, body }) {
-  const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
-  if (!base) return;
-  fetch(`${base}/api/captures`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      profile  : ctrl?.profile,
-      task_id  : ctrl?.task_id,
-      worker_id: process.env.WORKER_ID ?? '',
-      pattern,
-      matched_url: matchedUrl,
-      data: body,
-      timestamp: Date.now(),
-    }),
-    signal: AbortSignal.timeout(5000),
-  }).catch(err => logger.warn(`intercept 上报失败: ${err.message}`));
-}
-
-// 注册一次性响应监听器，匹配到 url 后上报数据到 gateway（立即返回，异步等待）
-async function intercept(context, { url, timeout = 15000 }, ctrl) {
-  if (!url || typeof url !== 'string') throw new Error('intercept: url（匹配模式）是必填项');
-
-  const page = await getOrCreatePage(context);
-
-  page.waitForResponse(
-    r => r.url().includes(url),
-    { timeout }
-  ).then(async response => {
-    const matchedUrl = response.url();
-    let body;
-    try { body = await response.json(); }
-    catch { body = await response.text().catch(() => null); }
-    await _reportCapture(ctrl, { pattern: url, matchedUrl, body });
-  }).catch(err => {
-    logger.warn(`intercept: "${url}" 在 ${timeout}ms 内无匹配: ${err.message}`);
-  });
+  const reported = reporter.reportScreenshot(ctrl, buffer);
+  if (!reported) return { ok: false, reason: 'no_gateway_url' };
+  return { ok: true };
 }
 
 // 暂停第一个或全部匹配的 <video> 元素
+// all: false（默认，只暂停第一个）| true（全部）
+// 返回 { ok, paused, total }
 async function pauseVideo(context, { selector = 'video', all = false, timeout = 10000 }) {
-  // "false" 字符串在 JSON pipeline 里是 truthy，统一转布尔
-  const selectAll = all === true || all === 'true';
+  const selectAll   = all === true || all === 'true';
   const safeTimeout = clamp(Number(timeout) || 10000, 1000, 30000);
-  const page = await getOrCreatePage(context);
+  const page        = await getOrCreatePage(context);
 
-  // 等视频元素出现且 readyState > 0（有媒体数据），否则 pause() 是空操作
   try {
     await page.waitForFunction(
       ({ sel, all }) => {
@@ -489,77 +532,60 @@ async function pauseVideo(context, { selector = 'video', all = false, timeout = 
     );
   } catch {
     logger.warn(`pause-video: "${selector}" 在 ${safeTimeout}ms 内未就绪，已跳过`);
-    return;
+    return { ok: false, reason: 'not_ready' };
   }
 
   const result = await page.evaluate(({ sel, all }) => {
     const els = all ? [...document.querySelectorAll(sel)] : [document.querySelector(sel)];
-    let total = 0, paused = 0, already = 0;
+    let total = 0, paused = 0;
     for (const v of els) {
       if (!v || v.readyState === 0) continue;
       total++;
-      if (v.paused) { already++; } else { v.pause(); paused++; }
+      if (!v.paused) { v.pause(); paused++; }
     }
-    return { total, paused, already };
+    return { total, paused };
   }, { sel: selector, all: selectAll });
 
-  if (result.already > 0 && result.paused === 0) {
-    logger.info(`pause-video: 找到 ${result.total} 个元素，均已暂停`);
-  } else {
-    logger.info(`pause-video: 暂停了 ${result.paused}/${result.total} 个匹配 "${selector}" 的元素`);
-  }
+  logger.info(`pause-video: 暂停了 ${result.paused}/${result.total} 个 "${selector}"`);
+  return { ok: true, ...result };
 }
 
 // 对匹配的 <video> 元素设置静音或取消静音
+// mute: true（静音，默认）| false（取消静音）
+// 返回 { ok, count }
 async function muteVideo(context, { selector = 'video', mute = true, all = false, timeout = 10000 }) {
-  // "false" 字符串在 JSON pipeline 里是 truthy，统一转布尔
-  const selectAll = all === true || all === 'true';
-  const safeMute  = mute === true || mute === 'true';
+  const selectAll   = all === true || all === 'true';
+  const safeMute    = mute === true || mute === 'true';
   const safeTimeout = clamp(Number(timeout) || 10000, 1000, 30000);
-  const page = await getOrCreatePage(context);
+  const page        = await getOrCreatePage(context);
 
   try {
     await page.waitForSelector(selector, { timeout: safeTimeout });
   } catch {
     logger.warn(`mute-video: "${selector}" 在 ${safeTimeout}ms 内未出现，已跳过`);
-    return;
+    return { ok: false, reason: 'not_found' };
   }
 
-  const found = await page.evaluate(({ sel, mute, all }) => {
+  const count = await page.evaluate(({ sel, mute, all }) => {
     const els = all ? [...document.querySelectorAll(sel)] : [document.querySelector(sel)];
-    let count = 0;
+    let n = 0;
     for (const v of els) {
-      if (v) { v.muted = mute; v.volume = mute ? 0 : 1; count++; }
+      if (!v) continue;
+      v.muted = mute;
+      v.volume = mute ? 0 : 1;
+      n++;
     }
-    return count;
+    return n;
   }, { sel: selector, mute: safeMute, all: selectAll });
 
-  logger.info(`mute-video: ${safeMute ? '已静音' : '已取消静音'} ${found} 个匹配 "${selector}" 的元素`);
+  logger.info(`mute-video: ${safeMute ? '静音' : '取消静音'} ${count} 个 "${selector}"`);
+  return { ok: true, count };
 }
 
-// 等待指定元素出现，超时可选择结束任务
-async function waitFor(context, { string, timeout = 10000, stopOnTimeout = false }, ctrl) {
-  if (!string) throw new Error('wait-for: string（选择器）是必填项');
-  const page = await getOrCreatePage(context);
-  const safeTimeout = clamp(Number(timeout) || 10000, 500, 120_000);
-  const locator = resolveLocator(page, string);
-  try {
-    await locator.waitFor({ state: 'visible', timeout: safeTimeout });
-  } catch {
-    if (stopOnTimeout) {
-      logger.warn(`wait-for: "${string}" 超时，结束任务`);
-      ctrl?.stop();
-    } else {
-      logger.warn(`wait-for: "${string}" 超时，继续执行`);
-    }
-  }
-}
-
-// 记录已注册 addInitScript 的 context，懒关闭复用时避免重复注册
+// 注入可见性欺骗脚本 + 人类活动模拟，防止页面检测到后台状态
+// 同一 context 只注入一次（懒关闭复用不重复叠加）
 const _antidetectInited = new WeakSet();
 
-// 注入可见性欺骗脚本并启动人类活动模拟循环，防止页面检测到后台状态
-// 使用 context.addInitScript 确保导航后依然生效；活动循环每 30–60s 触发一次
 async function antidetect(context) {
   const script = () => {
     Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
@@ -569,26 +595,19 @@ async function antidetect(context) {
       const triggerNext = () => {
         const types = ['mousemove', 'keydown', 'wheel', 'click'];
         document.dispatchEvent(new Event(types[Math.floor(Math.random() * types.length)], { bubbles: true }));
-        const delay = 30_000 + Math.floor(Math.random() * 30_000);
-        window._antiPauseHumanHook = setTimeout(triggerNext, delay);
+        window._antiPauseHumanHook = setTimeout(triggerNext, 30_000 + Math.floor(Math.random() * 30_000));
       };
       triggerNext();
     }
 
-    // 捕获阶段监听所有 video 的 play 事件，触发时立即静音
-    // 无需 MutationObserver，适用于当前及未来动态创建/重建的所有 video 元素
     if (!window._antiMuteHook) {
       window._antiMuteHook = true;
-      document.addEventListener('play', (e) => {
-        if (e.target.tagName === 'VIDEO') {
-          e.target.muted = true;
-          e.target.volume = 0;
-        }
+      document.addEventListener('play', e => {
+        if (e.target.tagName === 'VIDEO') { e.target.muted = true; e.target.volume = 0; }
       }, true);
     }
   };
 
-  // 同一个 context 只注册一次，懒关闭复用后不重复叠加
   if (!_antidetectInited.has(context)) {
     _antidetectInited.add(context);
     await context.addInitScript(script);
@@ -599,74 +618,95 @@ async function antidetect(context) {
   } catch (err) {
     logger.warn(`antidetect: evaluate 已跳过 (${err.message})`);
   }
+  return { ok: true };
 }
 
-// 读取浏览器存储的 Cookie 并与 rtcookie 拦截结果对比
-// url 参数指定域名范围，默认读所有；上报格式与 rtcookie 一致方便直接对比
-async function getCookies(context, { url = 'https://live.douyin.com' }, ctrl) {
+// 在页面上下文中执行 JS 表达式或函数，返回执行结果
+// code: 'document.title' 或 '() => { return ... }'
+async function evalAction(context, { code }) {
+  if (!code || typeof code !== 'string') {
+    return { ok: false, reason: 'no_code' };
+  }
   const page = await getOrCreatePage(context);
-  const currentUrl = page.url();
-
-  // context.cookies() 返回结构化对象，包含 httpOnly cookie
-  // 不传 url 拿全部 Cookie，避免按域名过滤导致遗漏其他域名设置的字段
-  const all = await context.cookies();
-
-  // 序列化成与 rtcookie 相同的 key=value; 格式
-  const cookieStr = all.map(c => `${c.name}=${c.value}`).join('; ');
-
-  // 打印结构化列表，方便对比哪些 rtcookie 里有、哪些没有
-  logger.info(`[get-cookies] 共 ${all.length} 个 Cookie (url=${url}):`);
-  for (const c of all) {
-    logger.info(`  ${c.httpOnly ? '[httpOnly]' : '[js可读]'} ${c.name}=${c.value.slice(0, 30)}${c.value.length > 30 ? '...' : ''}`);
-  }
-  logger.info(`[get-cookies] 序列化结果:\n${cookieStr}`);
-
-  // 同步上报到 gateway，与 rtcookie 用同一个 /api/cookies 接口
-  const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
-  if (base) {
-    fetch(`${base}/api/cookies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        profile        : ctrl?.profile,
-        task_id        : ctrl?.task_id,
-        worker_id      : process.env.WORKER_ID ?? '',
-        pattern        : `get-cookies:${url}`,
-        matched_url    : currentUrl,
-        cookie         : cookieStr,
-        cookie_detail  : all.map(c => ({ name: c.name, value: c.value, httpOnly: c.httpOnly, domain: c.domain })),
-        timestamp      : Date.now(),
-      }),
-      signal: AbortSignal.timeout(5000),
-    }).catch(err => logger.warn(`get-cookies 上报失败: ${err.message}`));
+  try {
+    const result = await page.evaluate(code);
+    logger.info(`eval 结果: ${JSON.stringify(result)}`);
+    return { ok: true, result };
+  } catch (err) {
+    logger.warn(`eval 错误: ${err.message}`);
+    return { ok: false, reason: 'eval_failed', error: err.message };
   }
 }
 
-// ─── 动作分发器 ──────────────────────────────────────────────────────────────
+// 在 Node.js 侧执行接收 { page, context, ctrl } 的 Playwright 代码片段
+// code: 'async ({ page, context, ctrl }) => { ... }'
+async function runCode(context, { code }, ctrl) {
+  if (!code || typeof code !== 'string') {
+    return { ok: false, reason: 'no_code' };
+  }
+  const page = await getOrCreatePage(context);
+  try {
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(`return (${code})`)();
+    const result = await fn({ page, context, ctrl });
+    return { ok: true, result };
+  } catch (err) {
+    logger.warn(`run-code 错误: ${err.message}`);
+    return { ok: false, reason: 'run_failed', error: err.message };
+  }
+}
 
-const ACTION_MAP = {
-  navigate, reload,
-  wait, dwell,
-  click, dblclick, hover, fill, scroll, mousemove,
-  rtcookie, screenshot, antidetect,
-  'pause-video': pauseVideo, 'mute-video': muteVideo, 'wait-for': waitFor,
-  'hover-capture': hoverCapture,
+// 懒关闭：导航到 about:blank，真正关闭由 chrome-pool 空闲超时负责
+async function close(context, _params, ctrl) {
+  if (!context) return { ok: false, reason: 'no_context' };
+  ctrl?.markReleasing();
+  try {
+    const pages = context.pages();
+    if (pages.length > 0) await pages[0].goto('about:blank').catch(() => {});
+    return { ok: true };
+  } catch (err) {
+    logger.warn(`close: ${err.message}`);
+    return { ok: false, reason: 'close_failed' };
+  }
+}
+
+// ─── 动作注册表 ───────────────────────────────────────────────────────────────
+
+const actions = {
+  navigate,
+  reload,
+  wait,
+  dwell,
+  click,
+  dblclick,
+  hover,
+  fill,
+  scroll,
+  mousemove,
+  screenshot,
+  antidetect,
   intercept,
-  eval: evalAction, 'run-code': runCode,
-  'get-cookies': getCookies,
+  'pause-video'  : pauseVideo,
+  'mute-video'   : muteVideo,
+  'wait-for'     : waitFor,
+  'hover-capture': hoverCapture,
+  'eval'         : evalAction,
+  'run-code'     : runCode,
   close,
 };
 
-// 执行 pipeline 中的单个步骤，根据 type 分发到对应动作函数
-async function runStep(context, step, ctrl) {
-  if (!step || typeof step !== 'object') {
-    throw new Error(`runStep: 无效的步骤 "${JSON.stringify(step)}"`);
-  }
-  const { type, ...params } = step;
-  if (!type) throw new Error('runStep: 步骤缺少 "type" 字段');
-  const fn = ACTION_MAP[type];
-  if (!fn) throw new Error(`runStep: 未知的动作类型 "${type}"`);
-  await fn(context, params, ctrl);
-}
+// ─── 导出 ─────────────────────────────────────────────────────────────────────
+// actions      供 actions-loader 合并到全局 ACTION_MAP
+// 工具函数     供业务插件复用，避免重复实现
 
-module.exports = { runStep };
+module.exports = {
+  actions,
+  // 工具函数（供插件复用）
+  clamp,
+  getOrCreatePage,
+  humanMouseMove,
+  resolveLocator,
+  pickSelector,
+  resolveElement,
+  humanClick,
+};

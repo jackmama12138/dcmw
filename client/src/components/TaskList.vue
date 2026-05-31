@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-    <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
       <h2 class="text-sm font-semibold">任务列表</h2>
       <div class="flex items-center gap-3 text-xs text-gray-600">
         <span>共 {{ tasks.length }} 条</span>
@@ -12,7 +12,7 @@
 
     <div v-else>
       <!-- header -->
-      <div class="grid items-center border-b border-gray-800 px-4 py-2 text-xs text-gray-600 select-none"
+      <div class="grid items-center border-b border-gray-200 px-4 py-2 text-xs text-gray-600 select-none"
         style="grid-template-columns:10px 150px minmax(0,1fr) 90px 100px 56px 220px">
         <div></div>
         <div class="px-2">Task ID</div>
@@ -26,7 +26,7 @@
       <!-- rows -->
       <div class="overflow-y-auto" style="max-height:calc(100vh - 220px)">
         <div v-for="t in paged" :key="t.task_id"
-          class="grid items-center border-b border-gray-800/40 last:border-0 px-4 hover:bg-gray-800/25 transition-colors"
+          class="grid items-center border-b border-gray-200 last:border-0 px-4 hover:bg-gray-50 transition-colors"
           style="grid-template-columns:10px 150px minmax(0,1fr) 90px 100px 56px 220px; min-height:40px">
 
           <div>
@@ -38,12 +38,12 @@
           </div>
 
           <div class="px-2 min-w-0">
-            <span class="block truncate text-gray-300 text-xs" :title="t.target_url">{{ t.target_url }}</span>
+            <span class="block truncate text-gray-600 text-xs" :title="t.target_url">{{ t.target_url }}</span>
           </div>
 
           <div class="px-2 min-w-0">
             <span v-if="t.task_type || t.template"
-              class="inline-block max-w-full truncate text-xs bg-gray-800 border border-gray-700/60 text-gray-400 px-1.5 py-px rounded font-mono"
+              class="inline-block max-w-full truncate text-xs bg-gray-100 border border-gray-200 text-gray-600 px-1.5 py-px rounded font-mono"
               :title="t.task_type || t.template">
               {{ t.task_type || t.template }}
             </span>
@@ -51,13 +51,13 @@
 
           <div class="px-2">
             <div class="flex items-center justify-end gap-1 text-xs tabular-nums mb-1">
-              <span class="text-emerald-400 font-medium">{{ t.completed }}</span>
+              <span class="text-emerald-600 font-medium">{{ t.completed }}</span>
               <span class="text-gray-700">/</span>
               <span class="text-gray-400">{{ t.count }}</span>
-              <span v-if="t.running > 0" class="text-amber-400">+{{ t.running }}</span>
-              <span v-if="t.failed > 0" class="text-red-400">✕{{ t.failed }}</span>
+              <span v-if="t.running > 0" class="text-amber-600">+{{ t.running }}</span>
+              <span v-if="t.failed > 0" class="text-red-500">✕{{ t.failed }}</span>
             </div>
-            <div class="h-0.5 bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-0.5 bg-gray-200 rounded-full overflow-hidden">
               <div :style="{ width: progressPct(t) + '%' }"
                 :class="['h-full rounded-full transition-all duration-500',
                   t.status === 'done' ? 'bg-emerald-500' : 'bg-indigo-500']"></div>
@@ -72,17 +72,17 @@
 
           <div class="px-2 flex items-center justify-end gap-1 flex-nowrap">
             <button v-if="t.status === 'running' || t.status === 'pending'" @click="$emit('stop', t.task_id)"
-              class="text-xs text-red-400 hover:text-white hover:bg-red-600 border border-red-900/50 px-1.5 py-px rounded transition-colors">
+              class="text-xs text-red-500 hover:text-white hover:bg-red-600 border border-red-200 px-1.5 py-px rounded transition-colors">
               停止
             </button>
             <button v-if="t.status === 'running' && isDouyin(t.target_url)"
               @click="$emit('ranklist-check', t)"
-              class="text-xs text-amber-400 hover:text-white hover:bg-amber-600 border border-amber-800/50 px-1.5 py-px rounded transition-colors">
+              class="text-xs text-amber-600 hover:text-white hover:bg-amber-600 border border-orange-200 px-1.5 py-px rounded transition-colors">
               榜单
             </button>
             <button v-if="t.status === 'running'"
               @click="$emit('screenshot-take', t)"
-              class="text-xs text-gray-400 hover:text-white hover:bg-gray-600 border border-gray-700/50 px-1.5 py-px rounded transition-colors">
+              class="text-xs text-gray-400 hover:text-white hover:bg-gray-100 border border-gray-200/50 px-1.5 py-px rounded transition-colors">
               截图
             </button>
           </div>
@@ -91,30 +91,30 @@
 
       <!-- pagination -->
       <div v-if="totalPages > 1"
-        class="flex items-center justify-between px-5 py-2.5 border-t border-gray-800 text-xs text-gray-600">
+        class="flex items-center justify-between px-5 py-2.5 border-t border-gray-200 text-xs text-gray-600">
         <span>第 {{ page }} / {{ totalPages }} 页，共 {{ tasks.length }} 条</span>
         <div class="flex items-center gap-1">
           <button @click="page = 1" :disabled="page === 1"
-            class="px-2 py-1 rounded border border-gray-800 hover:border-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors">
+            class="px-2 py-1 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-30 transition-colors">
             «
           </button>
           <button @click="page--" :disabled="page === 1"
-            class="px-2 py-1 rounded border border-gray-800 hover:border-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors">
+            class="px-2 py-1 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-30 transition-colors">
             ‹
           </button>
           <button v-for="p in pageRange" :key="p" @click="page = p"
             :class="['px-2.5 py-1 rounded border transition-colors',
               p === page
-                ? 'border-indigo-600 bg-indigo-600/20 text-indigo-300'
-                : 'border-gray-800 hover:border-gray-600 hover:text-gray-300']">
+                ? 'border-indigo-600 bg-blue-50 text-blue-600'
+                : 'border-gray-200 hover:border-gray-200 hover:text-gray-800']">
             {{ p }}
           </button>
           <button @click="page++" :disabled="page === totalPages"
-            class="px-2 py-1 rounded border border-gray-800 hover:border-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors">
+            class="px-2 py-1 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-30 transition-colors">
             ›
           </button>
           <button @click="page = totalPages" :disabled="page === totalPages"
-            class="px-2 py-1 rounded border border-gray-800 hover:border-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors">
+            class="px-2 py-1 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-30 transition-colors">
             »
           </button>
         </div>
@@ -146,7 +146,7 @@ const pageRange  = computed(() => {
 
 function dotColor(s) {
   return {
-    pending: 'bg-gray-600',
+    pending: 'bg-gray-400',
     running: 'bg-amber-400 animate-pulse',
     done:    'bg-emerald-500',
     stopped: 'bg-red-500',
@@ -155,12 +155,12 @@ function dotColor(s) {
 }
 function statusBadge(s) {
   return {
-    pending: 'bg-gray-800 text-gray-500 border border-gray-700',
-    running: 'bg-amber-950 text-amber-400 border border-amber-800/50',
-    done:    'bg-emerald-950 text-emerald-400 border border-emerald-800/50',
-    stopped: 'bg-red-950 text-red-400 border border-red-800/50',
-    error:   'bg-red-950 text-red-400 border border-red-800/50',
-  }[s] ?? 'bg-gray-800 text-gray-500';
+    pending: 'bg-gray-100 text-gray-500 border border-gray-200',
+    running: 'bg-amber-50 text-amber-600 border border-amber-200',
+    done:    'bg-emerald-950 text-emerald-600 border border-green-200',
+    stopped: 'bg-red-50 text-red-500 border border-red-200',
+    error:   'bg-red-50 text-red-500 border border-red-200',
+  }[s] ?? 'bg-gray-100 text-gray-500';
 }
 function statusLabel(s) {
   return { pending: '等待', running: '运行中', done: '完成', stopped: '已停止', error: '错误' }[s] ?? s;
