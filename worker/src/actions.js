@@ -523,12 +523,12 @@ async function hoverCapture(context, params) {
 // pick:  字段提取路径，字符串（单路径）或数组（多路径），不配置则上报完整 body
 //
 // 返回 { ok: true }（立即返回，捕获异步进行）
-async function intercept(context, { url, type = 'response', times = 1, pick }, ctrl) {
+async function intercept(context, { url, direction = 'response', times = 1, pick }, ctrl) {
   if (!url || typeof url !== 'string') {
     return { ok: false, reason: 'no_url' };
   }
-  if (type !== 'response' && type !== 'request') {
-    return { ok: false, reason: 'invalid_type' };
+  if (direction !== 'response' && direction !== 'request') {
+    return { ok: false, reason: 'invalid_direction' };
   }
 
   const page = await getOrCreatePage(context);
@@ -537,7 +537,7 @@ async function intercept(context, { url, type = 'response', times = 1, pick }, c
   const callback = async (obj) => {
     const matchedUrl = obj.url();
 
-    if (type === 'request') {
+    if (direction === 'request') {
       let postParams = null;
       try {
         postParams = obj.method() === 'POST' ? obj.postDataJSON() : null;
@@ -562,7 +562,7 @@ async function intercept(context, { url, type = 'response', times = 1, pick }, c
     reporter.reportCapture(ctrl, { pattern: url, matchedUrl, body: extracted });
   };
 
-  const token = hub.subscribe(type, url, callback, times);
+  const token = hub.subscribe(direction, url, callback, times);
   ctrl?.addCleanup(() => hub.unsubscribe(token));
 
   return { ok: true };

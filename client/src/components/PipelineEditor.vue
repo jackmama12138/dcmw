@@ -231,12 +231,13 @@ const STEP_DEFS = {
       ON_FAIL_FIELD,
     ]},
   intercept: {
-    label: '拦截响应数据', badge: 'bg-red-50 text-red-600',
-    desc: '监听匹配的网络响应并上报数据，不阻断请求（零延迟开销）',
+    label: '拦截网络数据', badge: 'bg-red-50 text-red-600',
+    desc: '监听匹配的请求或响应并上报数据，不阻断请求（零延迟开销）',
     fields: [
-      { key: 'url',     label: 'URL 关键词',  type: 'text',   placeholder: '/api/recommend' },
-      { key: 'timeout', label: '超时(ms)',    type: 'number', default: 15000 },
-      { key: 'times',   label: '捕获次数',    type: 'number', default: 1 },
+      { key: 'url',   label: 'URL 关键词', type: 'text',   placeholder: '/api/recommend' },
+      { key: 'direction', label: '监听方向', type: 'select', options: ['response','request'], default: 'response' },
+      { key: 'times', label: '捕获次数',   type: 'number', default: 1 },
+      { key: 'pick',  label: '字段提取',   type: 'text',   placeholder: 'data.list 或留空上报全量' },
     ]},
 
   // ─── 数据采集 ───────────────────────────────────────────────────────────────
