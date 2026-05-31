@@ -8,10 +8,12 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-// 获取或创建当前 context 中的第一个页面
+// 获取或创建当前 context 中的第一个页面，并确保 PageHub 已挂载
 async function getOrCreatePage(context) {
   const pages = context.pages();
-  return pages.length > 0 ? pages[0] : context.newPage();
+  const page  = pages.length > 0 ? pages[0] : await context.newPage();
+  getOrCreateHub(page);
+  return page;
 }
 
 // 模拟人类鼠标移动轨迹（贝塞尔曲线插值 + 随机抖动）
@@ -195,6 +197,90 @@ async function humanClick(page, locator, dblClick = false) {
   }
 
   return { ok: true, box };
+}
+
+// ─── Hub：全局 request/response 监听 ─────────────────────────────────────────
+
+// 标准化对象所有 key：连字符转下划线，递归处理嵌套对象（不处理数组元素）
+function normalizeKeys(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [
+      k.replace(/-/g, '_'),
+      normalizeKeys(v),
+    ])
+  );
+}
+
+// 按点路径提取对象字段，中途遇到 null/undefined 不抛错
+function pickPath(obj, path) {
+  if (!path) return obj;
+  if (obj === null || obj === undefined) return undefined;
+  return path.split('.').reduce((cur, key) => cur?.[key], obj);
+}
+
+// 从 body 中按 pick 配置提取字段，处理所有边界情况
+function applyPick(body, pick) {
+  if (body === null || body === undefined) return null;
+  if (!pick || (Array.isArray(pick) && pick.length === 0)) return body;
+
+  if (typeof pick === 'string') {
+    if (!pick.trim()) return body;
+    const val = pickPath(body, pick.trim());
+    return val === undefined ? null : val;
+  }
+
+  if (Array.isArray(pick)) {
+    const result = {};
+    for (const path of pick) {
+      if (!path || typeof path !== 'string') continue;
+      const val = pickPath(body, path.trim());
+      result[path] = val === undefined ? null : val;
+    }
+    return result;
+  }
+
+  return body;
+}
+
+class PageHub {
+  constructor(page) {
+    this._subs = new Map();
+    this._seq  = 0;
+    page.on('response', res => this._dispatch('response', res.url(), res));
+    page.on('request',  req => this._dispatch('request',  req.url(), req));
+  }
+
+  _dispatch(type, url, obj) {
+    for (const [token, sub] of this._subs) {
+      if (sub.type !== type) continue;
+      if (!url.includes(sub.urlPattern)) continue;
+      sub.callback(obj);
+      if (sub.remaining !== Infinity) {
+        sub.remaining--;
+        if (sub.remaining <= 0) this._subs.delete(token);
+      }
+    }
+  }
+
+  subscribe(type, urlPattern, callback, times = 1) {
+    const token = ++this._seq;
+    this._subs.set(token, {
+      type, urlPattern, callback,
+      remaining: times === -1 ? Infinity : Math.max(1, times),
+    });
+    return token;
+  }
+
+  unsubscribe(token) {
+    this._subs.delete(token);
+  }
+}
+
+const _hubs = new WeakMap();
+function getOrCreateHub(page) {
+  if (!_hubs.has(page)) _hubs.set(page, new PageHub(page));
+  return _hubs.get(page);
 }
 
 // ─── 动作实现 ─────────────────────────────────────────────────────────────────
@@ -430,57 +516,54 @@ async function hoverCapture(context, params) {
   return { ok: true, selector };
 }
 
-// 监听响应事件并上报到 gateway（基于 page.on('response')，零 CDP 开销）
-// 底层使用 waitForResponse（EventEmitter 订阅），不启用 Fetch 拦截，不影响请求延迟
+// 监听响应或请求事件并上报到 gateway（基于 PageHub 全局监听，零 CDP 开销）
 //
-// times:   捕获次数上限（默认 1，-1 表示不限次数）
-// timeout: 每次等待超时（默认 15000ms）
+// type:  'response'（默认）| 'request'
+// times: 捕获次数上限（默认 1，-1 表示不限次数）
+// pick:  字段提取路径，字符串（单路径）或数组（多路径），不配置则上报完整 body
 //
 // 返回 { ok: true }（立即返回，捕获异步进行）
-async function intercept(context, { url, timeout = 15000, times = 1 }, ctrl) {
+async function intercept(context, { url, type = 'response', times = 1, pick }, ctrl) {
   if (!url || typeof url !== 'string') {
     return { ok: false, reason: 'no_url' };
   }
-
-  const page        = await getOrCreatePage(context);
-  const safeTimeout = clamp(Number(timeout) || 15000, 1000, 120_000);
-  const maxTimes    = times === -1 ? Infinity : Math.max(1, Number(times) || 1);
-  let   matchCount  = 0;
-  let   cancelled   = false;
-
-  // 递归等待：每次命中后若未达上限则继续监听下一次
-  function waitOnce() {
-    page.waitForResponse(
-      r => r.url().includes(url),
-      { timeout: safeTimeout }
-    ).then(async response => {
-      if (cancelled) return;
-
-      matchCount++;
-      const matchedUrl = response.url();
-      let body;
-      try { body = await response.json(); }
-      catch { body = await response.text().catch(() => null); }
-      reporter.reportCapture(ctrl, { pattern: url, matchedUrl, body });
-
-      // 未达上限且任务未取消，继续监听
-      if (!cancelled && matchCount < maxTimes) waitOnce();
-
-    }).catch(err => {
-      if (cancelled) return; // 任务结束取消，静默处理
-
-      const msg = err.message ?? '';
-      // 页面/context 销毁属于正常生命周期（页面关闭、懒关闭导航），不算错误
-      if (msg.includes('closed') || msg.includes('destroyed') || msg.includes('Target')) return;
-      // 真正的超时：在 safeTimeout 内没有匹配到响应
-      logger.warn(`intercept: "${url}" 在 ${safeTimeout}ms 内无匹配`);
-    });
+  if (type !== 'response' && type !== 'request') {
+    return { ok: false, reason: 'invalid_type' };
   }
 
-  waitOnce();
+  const page = await getOrCreatePage(context);
+  const hub  = getOrCreateHub(page);
 
-  // 任务结束时标记取消，in-flight 的 waitForResponse 会在超时或页面关闭后自清理
-  ctrl?.addCleanup(() => { cancelled = true; });
+  const callback = async (obj) => {
+    const matchedUrl = obj.url();
+
+    if (type === 'request') {
+      let postParams = null;
+      try {
+        postParams = obj.method() === 'POST' ? obj.postDataJSON() : null;
+      } catch { postParams = null; }
+
+      const reported = {
+        method:  obj.method(),
+        url:     matchedUrl,
+        headers: normalizeKeys(obj.headers()),
+        query:   Object.fromEntries(new URL(matchedUrl).searchParams),
+        body:    postParams,
+      };
+      const extracted = applyPick(reported, pick);
+      reporter.reportCapture(ctrl, { pattern: url, matchedUrl, data: extracted });
+      return;
+    }
+
+    // type === 'response'
+    let body = null;
+    try { body = await obj.json(); } catch { body = await obj.text().catch(() => null); }
+    const extracted = applyPick(body, pick);
+    reporter.reportCapture(ctrl, { pattern: url, matchedUrl, body: extracted });
+  };
+
+  const token = hub.subscribe(type, url, callback, times);
+  ctrl?.addCleanup(() => hub.unsubscribe(token));
 
   return { ok: true };
 }
@@ -709,4 +792,7 @@ module.exports = {
   pickSelector,
   resolveElement,
   humanClick,
+  pickPath,
+  applyPick,
+  getOrCreateHub,
 };

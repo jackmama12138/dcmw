@@ -49,10 +49,12 @@ function validatePipeline(pipeline) {
   return null;
 }
 
-const sseBus = require('./sse-bus');
+const sseBus        = require('./sse-bus');
+const captureQueue  = require('./capture-queue');
 
 // 创建并返回 Express Router，注册所有 API 路由
 function createRouter({ taskStore, registry, scheduler }) {
+  captureQueue.init(taskStore);
   const router = Router();
 
   // 返回合法 pipeline 动作类型列表，前端用于构建编辑器选项
@@ -393,19 +395,13 @@ function createRouter({ taskStore, registry, scheduler }) {
   });
 
   // 接收 Worker 上报的响应拦截数据
-  router.post('/api/captures', async (req, res) => {
+  router.post('/api/captures', (req, res) => {
     const { task_id, profile, data } = req.body ?? {};
     if (!task_id || !profile || data == null) {
       return res.status(400).json({ error: 'task_id、profile、data 均为必填项' });
     }
-    try {
-      await taskStore.addCapture(String(task_id), req.body);
-      logger.info(`数据已捕获 task=${task_id} profile=${profile}`);
-      return res.json({ ok: true });
-    } catch (err) {
-      logger.error(`/api/captures 错误: ${err.message}`);
-      return res.status(500).json({ error: '内部错误' });
-    }
+    captureQueue.push(String(task_id), req.body);
+    return res.json({ ok: true });
   });
 
   // 获取指定任务的所有捕获数据
