@@ -294,15 +294,36 @@ function getOrCreateHub(page) {
 // 导航到指定 URL
 // waitUntil: 'commit'(默认) | 'load' | 'domcontentloaded' | 'networkidle'
 // 返回 { ok, url } 或 { ok: false, reason, error }
-async function navigate(context, { url, waitUntil = 'commit' }) {
+const _blockNewTabsScript = () => {
+  if (window._blockNewTabsHook) return;
+  window._blockNewTabsHook = true;
+  window.open = (url) => { if (url) location.href = url; return null; };
+  const strip = (root) => {
+    if (root && root.querySelectorAll)
+      root.querySelectorAll('a[target]').forEach(a => a.removeAttribute('target'));
+  };
+  strip(document);
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(strip)))
+    .observe(document.documentElement, { childList: true, subtree: true });
+};
+
+async function navigate(context, { url, waitUntil = 'commit', blockNewTabs = false }) {
   if (!url || typeof url !== 'string') {
     return { ok: false, reason: 'invalid_url', error: `无效的 url "${url}"` };
   }
-  const VALID   = ['commit', 'load', 'domcontentloaded', 'networkidle'];
+  const VALID    = ['commit', 'load', 'domcontentloaded', 'networkidle'];
   const safeWait = VALID.includes(waitUntil) ? waitUntil : 'commit';
-  const page    = await getOrCreatePage(context);
+  const page     = await getOrCreatePage(context);
+
+  if (blockNewTabs) {
+    await context.addInitScript(_blockNewTabsScript);
+  }
+
   try {
     await page.goto(url, { waitUntil: safeWait, timeout: 30_000 });
+    if (blockNewTabs) {
+      await page.evaluate(_blockNewTabsScript).catch(() => {});
+    }
     return { ok: true, url };
   } catch (err) {
     logger.warn(`navigate: 导航失败 "${url}" — ${err.message}`);
@@ -722,19 +743,6 @@ async function antidetect(context) {
       }, true);
     }
 
-    if (!window._antiNewTabHook) {
-      window._antiNewTabHook = true;
-      // window.open 重定向到当前页
-      window.open = (url) => { if (url) location.href = url; return null; };
-      // 移除已有链接的 target 属性，并持续监听动态插入的链接
-      const stripTarget = (root) => {
-        if (root.querySelectorAll) root.querySelectorAll('a[target]').forEach(a => a.removeAttribute('target'));
-      };
-      stripTarget(document);
-      new MutationObserver(mutations => {
-        mutations.forEach(m => m.addedNodes.forEach(n => stripTarget(n)));
-      }).observe(document.documentElement, { childList: true, subtree: true });
-    }
   };
 
   if (!_antidetectInited.has(context)) {

@@ -1,0 +1,197 @@
+- generic [active] [ref=e1]:
+  - button "开启读屏标签" [ref=e2]
+  - generic: 读屏标签已关闭
+  - generic [ref=e5]:
+    - generic [ref=e7]:
+      - link [ref=e8] [cursor=pointer]:
+        - /url: //www.douyin.com/jingxuan
+      - generic [ref=e14]:
+        - generic [ref=e16]:
+          - link "精选" [ref=e20] [cursor=pointer]:
+            - /url: https://www.douyin.com/jingxuan?from_nav=1
+            - generic [ref=e23]: 精选
+          - link "推荐" [ref=e27] [cursor=pointer]:
+            - /url: https://www.douyin.com/?recommend=1&from_nav=1
+            - generic [ref=e30]: 推荐
+          - link "搜索" [ref=e34] [cursor=pointer]:
+            - /url: https://www.douyin.com/aisearch?from_nav=1
+            - generic [ref=e37]: 搜索
+          - link "关注" [ref=e41] [cursor=pointer]:
+            - /url: https://www.douyin.com/follow?from_nav=1
+            - generic [ref=e44]: 关注
+          - link "朋友" [ref=e48] [cursor=pointer]:
+            - /url: https://www.douyin.com/friend?from_nav=1
+            - generic [ref=e51]: 朋友
+          - link "我的" [ref=e55] [cursor=pointer]:
+            - /url: https://www.douyin.com/user/self?from_nav=1
+            - generic [ref=e58]: 我的
+          - link "高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜 高考必胜" [ref=e63] [cursor=pointer]:
+            - /url: https://www.douyin.com/activity/2780147?from_nav=1
+            - generic [ref=e65]:
+              - img "高考必胜" [ref=e66]
+              - img "高考必胜" [ref=e67]
+              - img "高考必胜" [ref=e68]
+              - img "高考必胜" [ref=e69]
+              - img "高考必胜" [ref=e70]
+              - img "高考必胜" [ref=e71]
+              - img "高考必胜" [ref=e72]
+              - img "高考必胜" [ref=e73]
+              - img "高考必胜" [ref=e74]
+              - img "高考必胜" [ref=e75]
+              - img "高考必胜" [ref=e76]
+              - img "高考必胜" [ref=e77]
+              - img "高考必胜" [ref=e78]
+              - img "高考必胜" [ref=e79]
+              - img "高考必胜" [ref=e80]
+              - img "高考必胜" [ref=e81]
+              - img "高考必胜" [ref=e82]
+              - img "高考必胜" [ref=e83]
+              - img "高考必胜" [ref=e84]
+              - img "高考必胜" [ref=e85]
+          - link "直播" [ref=e89] [cursor=pointer]:
+            - /url: https://live.douyin.com/?from_nav=1
+            - generic [ref=e92]: 直播
+          - link "放映厅" [ref=e96] [cursor=pointer]:
+            - /url: https://www.douyin.com/vs?from_nav=1
+            - generic [ref=e99]: 放映厅
+          - link "短剧" [ref=e103] [cursor=pointer]:
+            - /url: https://www.douyin.com/series?from_nav=1
+            - generic [ref=e106]: 短剧
+        - generic [ref=e108]:
+          - img [ref=e111] [cursor=pointer]
+          - img [ref=e115] [cursor=pointer]
+          - img [ref=e119] [cursor=pointer]
+    - main [ref=e121]:
+      - generic [ref=e128]:
+        - generic [ref=e132]:
+          - textbox "搜索你感兴趣的内容" [ref=e134]
+          - button "搜索" [ref=e136] [cursor=pointer]:
+            - img [ref=e137]
+            - generic [ref=e139]: 搜索
+        - generic [ref=e143]:
+          - generic [ref=e145] [cursor=pointer]:
+            - img [ref=e147]:
+              - img [ref=e148]
+            - paragraph [ref=e150]: 充钻石
+          - link "客户端" [ref=e155] [cursor=pointer]:
+            - /url: ""
+            - generic [ref=e157]:
+              - img [ref=e159]:
+                - img [ref=e160]
+              - paragraph [ref=e163]: 客户端
+          - generic [ref=e165] [cursor=pointer]:
+            - img [ref=e167]:
+              - img [ref=e168]
+            - paragraph [ref=e170]: 壁纸
+          - list [ref=e171]:
+            - generic [ref=e175] [cursor=pointer]:
+              - img [ref=e177]:
+                - img [ref=e178]
+              - paragraph [ref=e181]: 通知
+          - list [ref=e182]:
+            - generic [ref=e186] [cursor=pointer]:
+              - img [ref=e188]:
+                - img [ref=e189]
+              - paragraph [ref=e193]: 私信
+          - generic [ref=e197] [cursor=pointer]:
+            - img [ref=e199]:
+              - img [ref=e200]
+            - paragraph [ref=e202]: 投稿
+          - button "登录" [ref=e206] [cursor=pointer]:
+            - paragraph [ref=e208]: 登录
+      - generic [ref=e213]:
+        - link "全部" [ref=e215] [cursor=pointer]:
+          - /url: /
+        - link "聊天" [ref=e217] [cursor=pointer]:
+          - /url: /categorynew/4_101
+        - link "音乐" [ref=e219] [cursor=pointer]:
+          - /url: /categorynew/4_102
+        - link "游戏" [ref=e221] [cursor=pointer]:
+          - /url: /categorynew/4_103
+        - link "二次元" [ref=e223] [cursor=pointer]:
+          - /url: /categorynew/4_104
+        - link "舞蹈" [ref=e225] [cursor=pointer]:
+          - /url: /categorynew/4_105
+        - link "文化" [ref=e227] [cursor=pointer]:
+          - /url: /categorynew/4_106
+        - link "生活" [ref=e229] [cursor=pointer]:
+          - /url: /categorynew/4_107
+        - link "运动" [ref=e231] [cursor=pointer]:
+          - /url: /categorynew/4_108
+      - generic [ref=e232]:
+        - generic [ref=e234]:
+          - generic [ref=e241]: 我的关注
+          - generic [ref=e251]: 更多直播
+        - generic [ref=e260]:
+          - generic [ref=e261]:
+            - link "广告投放" [ref=e263] [cursor=pointer]:
+              - /url: https://www.oceanengine.com/resource/douyin
+            - link "用户服务协议" [ref=e265] [cursor=pointer]:
+              - /url: https://www.douyin.com/agreements/?id=6773906068725565448
+            - link "隐私政策" [ref=e267] [cursor=pointer]:
+              - /url: https://www.douyin.com/agreements/?id=6773901168964798477
+            - link "账号找回" [ref=e269] [cursor=pointer]:
+              - /url: https://www.douyin.com/recovery_account/
+            - link "联系我们" [ref=e271] [cursor=pointer]:
+              - /url: https://www.douyin.com/aboutus/
+            - link "加入我们" [ref=e273] [cursor=pointer]:
+              - /url: https://www.douyin.com/aboutus/
+            - link "营业执照" [ref=e275] [cursor=pointer]:
+              - /url: https://www.douyin.com/business_license/
+            - link "友情链接" [ref=e277] [cursor=pointer]:
+              - /url: https://www.douyin.com/friend_links
+            - link "站点地图" [ref=e279] [cursor=pointer]:
+              - /url: https://www.douyin.com/htmlmap/hotauthor_0_1
+            - link "下载抖音" [ref=e281] [cursor=pointer]:
+              - /url: https://www.douyin.com/downloadpage/pc
+            - link "抖音电商" [ref=e283] [cursor=pointer]:
+              - /url: https://mix.jinritemai.com/falcon/mix_page/index.html
+          - generic [ref=e284]:
+            - link "网络谣言曝光台 ｜" [ref=e286] [cursor=pointer]:
+              - /url: https://www.piyao.org.cn/yybgt/index.htm
+            - link "网上有害信息举报" [ref=e288] [cursor=pointer]:
+              - /url: https://www.12377.cn/
+            - generic [ref=e289]: ｜ 违法和不良信息举报：400-140-2108 ｜ 算法推荐专项举报：sfjubao@bytedance.com ｜ 网络内容从业人员违法违规行为举报：feedback@douyin.com | 体育饭圈专项举报：tyfq@bytedance.com
+          - generic [ref=e290]:
+            - link "京ICP备16016397号-3" [ref=e292] [cursor=pointer]:
+              - /url: https://beian.miit.gov.cn/
+            - generic [ref=e293]: ｜ 广播电视节目制作经营许可证 （京）字第11313号
+            - generic [ref=e294]: ｜ 增值电信业务经营许可证 京B2-20170846
+            - generic [ref=e295]: ｜ 网络文化经营许可证 京网文〔2025〕0181-061号 ｜
+            - generic [ref=e296]:
+              - img "icon" [ref=e297]
+              - link "京公网安备 11000002002046号" [ref=e298] [cursor=pointer]:
+                - /url: http://www.beian.gov.cn/portal/registerSystemInfo
+            - generic [ref=e299]: ｜ 互联网宗教信息服务许可证 京（2025）0000017
+          - generic [ref=e300]:
+            - generic [ref=e302]: 热门：
+            - link "抖音体育" [ref=e304] [cursor=pointer]:
+              - /url: https://www.douyin.com/jingxuan/sports
+            - link "抖音精选" [ref=e306] [cursor=pointer]:
+              - /url: https://www.douyin.com/jingxuan
+            - link "众格家具" [ref=e308] [cursor=pointer]:
+              - /url: https://www.douyin.com/user/MS4wLjABAAAA82oDgGIHL-7hQVKrytKFod0ovMZuSclHz2-be5euRV_ZWk5eC-_vBCWX6LY_Q1_5
+            - 'link "今天这个妈妈很着急#内江英语机构 #英语没那么难 #教育双向奔赴 #英语#内江英语" [ref=e310] [cursor=pointer]':
+              - /url: https://www.douyin.com/video/7645862631094844914
+            - link "农村专项申请表" [ref=e312] [cursor=pointer]:
+              - /url: https://www.douyin.com/topic/7509892158816569394
+            - link "游山西村高考" [ref=e314] [cursor=pointer]:
+              - /url: https://www.douyin.com/shipin/7509920669346596898
+            - link "山东模拟志愿填报有什么用" [ref=e316] [cursor=pointer]:
+              - /url: https://www.douyin.com/search/%E5%B1%B1%E4%B8%9C%E6%A8%A1%E6%8B%9F%E5%BF%97%E6%84%BF%E5%A1%AB%E6%8A%A5%E6%9C%89%E4%BB%80%E4%B9%88%E7%94%A8
+            - link "梁源对白小白鞠躬道歉" [ref=e318] [cursor=pointer]:
+              - /url: https://www.douyin.com/video/7619554138359090484?source=Baiduspider
+            - generic [ref=e319]:
+              - link:
+                - /url: https://www.douyin.com/video/7156528769979714828?source=Baiduspider
+            - 'link "分享大V博主@SavisLook 【购物分享｜秋季色彩穿搭灵感】近一周气温骤降，准备好的几套深秋穿搭，今年秋冬很不错的色彩搭配，你喜欢哪个Look？留言吧！时长：9′36″ #秋季购物 #深秋穿搭 #色彩搭配" [ref=e321] [cursor=pointer]':
+              - /url: https://www.douyin.com/video/7152690826563292429?source=Baiduspider
+            - generic [ref=e322]:
+              - link:
+                - /url: https://www.douyin.com/video/7584782865826336049?source=Baiduspider-sdc
+            - 'link "火柴人部落之战6#电子榨菜 #游戏#鬼知道我看了多少遍" [ref=e324] [cursor=pointer]':
+              - /url: https://www.douyin.com/video/7525735241999650106?source=Baiduspider
+            - 'link "高考化学必考的一道大题：工艺流程中常考内容，侯德榜制碱法。 #化学 #高考 #涨知识 #知识分享 #中考 #实验 #知识点总结" [ref=e326] [cursor=pointer]':
+              - /url: https://www.douyin.com/video/7161172293174054148?source=Baiduspider
+            - 'link "一个小配件 解决新普拉多车机最大痛点 #普拉多 #爱普联盟 #丰田霸道" [ref=e328] [cursor=pointer]':
+              - /url: https://www.douyin.com/video/7461891228271906107?source=Baiduspider-sdc

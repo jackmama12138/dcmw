@@ -136,8 +136,9 @@ const STEP_DEFS = {
     label: '打开页面', badge: 'bg-blue-50 text-blue-600',
     desc: '导航到指定 URL，支持等待不同加载状态',
     fields: [
-      { key: 'url',       label: '目标 URL',  type: 'text',   placeholder: 'https://example.com' },
-      { key: 'waitUntil', label: '等待策略',  type: 'select', options: ['commit','load','domcontentloaded','networkidle'], default: 'commit' },
+      { key: 'url',          label: '目标 URL',    type: 'text',     placeholder: 'https://example.com' },
+      { key: 'waitUntil',   label: '等待策略',    type: 'select',   options: ['commit','load','domcontentloaded','networkidle'], default: 'commit' },
+      { key: 'blockNewTabs', label: '拦截新标签页', type: 'checkbox', default: false },
       ON_FAIL_FIELD,
     ]},
   reload: {
@@ -252,7 +253,7 @@ const STEP_DEFS = {
   // ─── 反检测 / 媒体 ──────────────────────────────────────────────────────────
   antidetect: {
     label: '防检测 & 静音', badge: 'bg-teal-50 text-teal-600',
-    desc: '注入可见性欺骗脚本 + 人类活动模拟，视频自动静音，拦截新标签页（window.open / target=_blank）',
+    desc: '注入可见性欺骗脚本 + 人类活动模拟，视频自动静音',
     fields: [] },
   'pause-video': {
     label: '暂停视频', badge: 'bg-teal-50 text-teal-600',

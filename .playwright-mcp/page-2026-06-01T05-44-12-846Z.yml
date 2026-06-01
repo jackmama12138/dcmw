@@ -1,0 +1,203 @@
+- generic [active] [ref=e1]:
+  - button "开启读屏标签" [ref=e2]
+  - generic: 读屏标签已关闭
+  - generic [ref=e4]:
+    - generic [ref=e6]:
+      - link [ref=e7] [cursor=pointer]:
+        - /url: //www.douyin.com/jingxuan
+      - generic [ref=e13]:
+        - generic [ref=e15]:
+          - link "精选" [ref=e19] [cursor=pointer]:
+            - /url: https://www.douyin.com/jingxuan?from_nav=1
+            - generic [ref=e22]: 精选
+          - link "推荐" [ref=e26] [cursor=pointer]:
+            - /url: https://www.douyin.com/?recommend=1&from_nav=1
+            - generic [ref=e29]: 推荐
+          - link "搜索" [ref=e33] [cursor=pointer]:
+            - /url: https://www.douyin.com/aisearch?from_nav=1
+            - generic [ref=e36]: 搜索
+          - link "关注" [ref=e40] [cursor=pointer]:
+            - /url: https://www.douyin.com/follow?from_nav=1
+            - generic [ref=e43]: 关注
+          - link "朋友" [ref=e47] [cursor=pointer]:
+            - /url: https://www.douyin.com/friend?from_nav=1
+            - generic [ref=e50]: 朋友
+          - link "我的" [ref=e54] [cursor=pointer]:
+            - /url: https://www.douyin.com/user/self?from_nav=1
+            - generic [ref=e57]: 我的
+          - link "短剧" [ref=e62] [cursor=pointer]:
+            - /url: https://www.douyin.com/series?from_nav=1
+            - generic [ref=e65]: 短剧
+        - generic [ref=e67]:
+          - img [ref=e70] [cursor=pointer]
+          - img [ref=e74] [cursor=pointer]
+          - img [ref=e78] [cursor=pointer]
+    - generic [ref=e80]:
+      - banner [ref=e83]:
+        - generic [ref=e85]:
+          - generic [ref=e89]:
+            - textbox "搜索你感兴趣的内容" [ref=e91]
+            - button "搜索" [ref=e93] [cursor=pointer]:
+              - img [ref=e94]
+              - generic [ref=e96]: 搜索
+          - generic [ref=e100]:
+            - generic [ref=e102] [cursor=pointer]:
+              - img [ref=e104]:
+                - img [ref=e105]
+              - paragraph [ref=e107]: 充钻石
+            - link "客户端" [ref=e112] [cursor=pointer]:
+              - /url: ""
+              - generic [ref=e114]:
+                - img [ref=e116]:
+                  - img [ref=e117]
+                - paragraph [ref=e120]: 客户端
+            - list [ref=e121]:
+              - generic [ref=e124] [cursor=pointer]:
+                - img [ref=e126]:
+                  - img [ref=e127]
+                - paragraph [ref=e130]: 通知
+            - list [ref=e131]:
+              - generic [ref=e134] [cursor=pointer]:
+                - img [ref=e136]:
+                  - img [ref=e137]
+                - paragraph [ref=e141]: 私信
+            - generic [ref=e145] [cursor=pointer]:
+              - img [ref=e147]:
+                - img [ref=e148]
+              - paragraph [ref=e150]: 投稿
+            - link [ref=e153] [cursor=pointer]:
+              - /url: //www.douyin.com/user/self
+              - listitem [ref=e154]
+      - generic [ref=e156]:
+        - tablist [ref=e157]:
+          - tab "全部" [selected] [ref=e158]
+          - tab "公开课" [ref=e159] [cursor=pointer]
+          - tab "游戏" [ref=e160] [cursor=pointer]
+          - tab "二次元" [ref=e161] [cursor=pointer]
+          - tab "音乐" [ref=e162] [cursor=pointer]
+          - tab "影视" [ref=e163] [cursor=pointer]
+          - tab "美食" [ref=e164] [cursor=pointer]
+          - tab "知识" [ref=e165] [cursor=pointer]
+          - tab "小剧场" [ref=e166] [cursor=pointer]
+          - tab "生活vlog" [ref=e167] [cursor=pointer]
+          - tab "体育" [ref=e168] [cursor=pointer]
+          - tab "旅行" [ref=e169] [cursor=pointer]
+          - tab "亲子" [ref=e170] [cursor=pointer]
+          - tab "动物" [ref=e171] [cursor=pointer]
+          - tab "三农" [ref=e172] [cursor=pointer]
+          - tab "汽车" [ref=e173] [cursor=pointer]
+          - tab "美妆穿搭" [ref=e174] [cursor=pointer]
+        - tabpanel "全部" [ref=e176]:
+          - generic [ref=e182]:
+            - generic [ref=e185] [cursor=pointer]:
+              - generic [ref=e187]:
+                - 'img "别 欺 负 天 津 小 学 生 #搞笑配音 #一本正经飚方言 #万万想不到 #天津话 #搞笑" [ref=e189]'
+                - generic [ref=e192]:
+                  - generic [ref=e193]: 03:02
+                  - generic [ref=e194]:
+                    - img [ref=e195]:
+                      - img [ref=e196]
+                    - generic [ref=e198]: 665.4万
+              - generic [ref=e200]:
+                - generic [ref=e201]: "别 欺 负 天 津 小 学 生 #搞笑配音 #一本正经飚方言 #万万想不到 #天津话 #搞笑"
+                - generic [ref=e203]:
+                  - generic [ref=e204]: "@肥龙和老西"
+                  - generic [ref=e205]: · 3月26日
+            - generic [ref=e208] [cursor=pointer]:
+              - generic [ref=e210]:
+                - 'img "诸葛亮第一次指挥作战，不料却遭到关羽张飞的联合抵制#三国演义 #经典影视 #精选内容 #青年创作者成长计划" [ref=e212]'
+                - generic [ref=e215]:
+                  - generic [ref=e216]: 15:12
+                  - generic [ref=e218]: 6.4万
+              - generic [ref=e220]:
+                - generic [ref=e221]: "诸葛亮第一次指挥作战，不料却遭到关羽张飞的联合抵制#三国演义 #经典影视 #精选内容 #青年创作者成长计划"
+                - generic [ref=e223]:
+                  - generic [ref=e224]: "@南一探剧"
+                  - generic [ref=e225]: · 5月14日
+            - generic [ref=e228] [cursor=pointer]:
+              - generic [ref=e230]:
+                - 'img "当你穿进老钱班18#侯绿萝#老钱班#逆水寒手游 #逆水寒千日庆 #逆水寒楼兰版本" [ref=e232]'
+                - generic [ref=e235]:
+                  - generic [ref=e236]: 03:04
+                  - generic [ref=e238]: 352.6万
+              - generic [ref=e240]:
+                - generic [ref=e241]: "当你穿进老钱班18#侯绿萝#老钱班#逆水寒手游 #逆水寒千日庆 #逆水寒楼兰版本"
+                - generic [ref=e243]:
+                  - generic [ref=e244]: "@侯绿萝"
+                  - generic [ref=e245]: · 3月25日
+            - generic [ref=e248] [cursor=pointer]:
+              - generic [ref=e250]:
+                - img "迷你咕咕嘎嘎小企鹅故事（二）第一集 迷你咕咕嘎嘎小企鹅故事（二）第一集，属于新篇剧情#咕咕嘎嘎小企鹅#迷你咕咕嘎嘎" [ref=e252]
+                - generic [ref=e255]:
+                  - generic [ref=e256]: 06:58
+                  - generic [ref=e258]: "9725"
+              - generic [ref=e260]:
+                - generic [ref=e261]: 迷你咕咕嘎嘎小企鹅故事（二）第一集 迷你咕咕嘎嘎小企鹅故事（二）第一集，属于新篇剧情#咕咕嘎嘎小企鹅#迷你咕咕嘎嘎
+                - generic [ref=e263]:
+                  - generic [ref=e264]: "@阿尔"
+                  - generic [ref=e265]: · 5月15日
+            - generic [ref=e269]:
+              - generic [ref=e272] [cursor=pointer]:
+                - img [ref=e276]
+                - img [ref=e278]
+                - generic [ref=e284]: 直播中
+              - generic [ref=e289]:
+                - generic [ref=e290] [cursor=pointer]: 刁德一正在直播
+                - generic [ref=e292]:
+                  - text: "@"
+                  - generic [ref=e293]: 大司马(梦幻西游)
+            - generic [ref=e296] [cursor=pointer]:
+              - generic [ref=e298]:
+                - 'img "父亲参加完聚会回来后，竟然了大量物资并且带着我们一家三口回到了荒山老家..........#末日 #末日求生 #末日生存 #丧尸" [ref=e300]'
+                - generic [ref=e303]:
+                  - generic [ref=e304]: 23:09
+                  - generic [ref=e306]: 2.1万
+              - generic [ref=e308]:
+                - generic [ref=e309]: "父亲参加完聚会回来后，竟然了大量物资并且带着我们一家三口回到了荒山老家..........#末日 #末日求生 #末日生存 #丧尸"
+                - generic [ref=e311]:
+                  - generic [ref=e312]: "@小白."
+                  - generic [ref=e313]: · 2天前
+            - generic [ref=e316] [cursor=pointer]:
+              - generic [ref=e318]:
+                - 'img "这是什么神仙美味！ 小宝小丁竟然真做出了水果果冻，解压又好吃#金牌育言家 #被宝宝治愈的一天 #小宝小丁" [ref=e320]'
+                - generic [ref=e323]:
+                  - generic [ref=e324]: 01:10
+                  - generic [ref=e326]: 8.3万
+              - generic [ref=e328]:
+                - generic [ref=e329]: "这是什么神仙美味！ 小宝小丁竟然真做出了水果果冻，解压又好吃#金牌育言家 #被宝宝治愈的一天 #小宝小丁"
+                - generic [ref=e331]:
+                  - generic [ref=e332]: "@男幼师～贾爸爸"
+                  - generic [ref=e333]: · 5月18日
+            - generic [ref=e336] [cursor=pointer]:
+              - generic [ref=e338]:
+                - 'img "【深度+精讲】《大秦帝国之裂变》：王者之辩——秦孝公舌战墨家#青年创作者成长计划 #了不起的精讲团 #影娱漫谈编辑部 #大秦帝国之裂变 #历史" [ref=e340]'
+                - generic [ref=e343]:
+                  - generic [ref=e344]: 12:42
+                  - generic [ref=e346]: 2.3万
+              - generic [ref=e348]:
+                - generic [ref=e349]: "【深度+精讲】《大秦帝国之裂变》：王者之辩——秦孝公舌战墨家#青年创作者成长计划 #了不起的精讲团 #影娱漫谈编辑部 #大秦帝国之裂变 #历史"
+                - generic [ref=e351]:
+                  - generic [ref=e352]: "@逐影记"
+                  - generic [ref=e353]: · 3月11日
+            - generic [ref=e356] [cursor=pointer]:
+              - generic [ref=e358]:
+                - 'img "《钢铁侠3》从亿万富豪到雪地求生，钢铁侠最狼狈的一集 #钢铁侠 #漫威 #电影解说 #热点" [ref=e360]'
+                - generic [ref=e363]:
+                  - generic [ref=e364]: 09:13
+                  - generic [ref=e366]: 1.5万
+              - generic [ref=e368]:
+                - generic [ref=e369]: "《钢铁侠3》从亿万富豪到雪地求生，钢铁侠最狼狈的一集 #钢铁侠 #漫威 #电影解说 #热点"
+                - generic [ref=e371]:
+                  - generic [ref=e372]: "@小虎牙电影"
+                  - generic [ref=e373]: · 1天前
+            - generic [ref=e376] [cursor=pointer]:
+              - generic [ref=e378]:
+                - 'img "听说昂贵的澳龙在新西兰泛滥了，帅小伙带女友火速前往。。 #潘婷胜肽泡弹发膜" [ref=e380]'
+                - generic [ref=e383]:
+                  - generic [ref=e384]: 14:15
+                  - generic [ref=e386]: 91.2万
+              - generic [ref=e388]:
+                - generic [ref=e389]: "听说昂贵的澳龙在新西兰泛滥了，帅小伙带女友火速前往。。 #潘婷胜肽泡弹发膜"
+                - generic [ref=e391]:
+                  - generic [ref=e392]: "@大豪夫妇"
+                  - generic [ref=e393]: · 4月1日
