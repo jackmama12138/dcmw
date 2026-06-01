@@ -50,13 +50,9 @@
 
       <main style="flex:1; overflow-y:auto; padding:20px; background:var(--bg-page)">
         <Dashboard       v-if="activeTab === 'dashboard'"   :workers="workers" @refresh="refresh" />
-        <TaskSubmit      v-if="activeTab === 'submit'"      :workers="workers" @submitted="refresh" />
+        <ActiveTasks     v-if="activeTab === 'active'"      :workers="workers" />
         <TemplateManager v-if="activeTab === 'templates'" />
-        <TaskList        v-if="activeTab === 'tasks'"
-          :tasks="tasks" :workers="workers"
-          @stop="stopTask"
-          @ranklist-check="doRanklistCheck"
-          @screenshot-take="doScreenshotTake" />
+        <TaskList        v-if="activeTab === 'tasks'"       :tasks="tasks" />
         <CookieViewer    v-if="activeTab === 'cookies'" />
         <ScreenshotViewer v-if="activeTab === 'screenshots'" />
         <CaptureViewer   v-if="activeTab === 'captures'"  :initial-task-id="captureTaskId" />
@@ -69,7 +65,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
 import Dashboard       from './components/Dashboard.vue';
-import TaskSubmit      from './components/TaskSubmit.vue';
+import ActiveTasks     from './components/ActiveTasks.vue';
 import TemplateManager from './components/TemplateManager.vue';
 import TaskList        from './components/TaskList.vue';
 import CookieViewer    from './components/CookieViewer.vue';
@@ -80,13 +76,12 @@ import { fetchTasks, fetchWorkers, stopTask as apiStop, triggerRanklistCheck, tr
 
 const TABS = [
   { id: 'dashboard',   label: '运维面板',  icon: '◈', desc: '实时节点与任务概览' },
-  { id: 'submit',      label: '发布任务',  icon: '⊕', desc: '创建新任务' },
+  { id: 'active',      label: '执行中',    icon: '▶', desc: '执行中任务与节点状态' },
   { id: 'templates',   label: '任务编排',  icon: '⊞', desc: '管理 Pipeline 模板' },
-  { id: 'tasks',       label: '任务列表',  icon: '≣', desc: '历史与进行中任务' },
+  { id: 'tasks',       label: '任务列表',  icon: '≣', desc: '历史任务记录' },
   { id: 'cookies',     label: 'Cookie',   icon: '○', desc: 'rtcookie 采集记录' },
   { id: 'screenshots', label: '截图',      icon: '▣', desc: 'screenshot 截图记录' },
   { id: 'captures',    label: '拦截数据',  icon: '◎', desc: 'intercept 响应数据' },
-  { id: 'ranklist',    label: '榜单检查',  icon: '◉', desc: '直播间榜单检查记录' },
 ];
 
 const activeTab     = ref('dashboard');
@@ -189,6 +184,7 @@ function handleScreenshotDone(msg) {
 provide('wsSend', wsSend);
 provide('progressMap', progressMap);
 provide('screenshotNotifications', screenshotNotifications);
+provide('setTab', (tab) => { activeTab.value = tab; });
 
 onMounted(() => {
   refresh(); // 初始全量拉取兜底（WS 未连接前保证有数据）

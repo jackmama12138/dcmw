@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden" style="height:calc(100vh - 96px); display:flex; flex-direction:column">
     <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
       <h2 class="text-sm font-semibold">任务列表</h2>
       <div class="flex items-center gap-3 text-xs text-gray-600">
@@ -10,9 +10,9 @@
 
     <div v-if="!tasks.length" class="text-sm text-gray-600 text-center py-12">暂无任务</div>
 
-    <div v-else>
+    <div v-else style="flex:1; min-height:0; display:flex; flex-direction:column">
       <!-- header -->
-      <div class="grid items-center border-b border-gray-200 px-4 py-2 text-xs text-gray-600 select-none"
+      <div class="grid items-center border-b border-gray-200 px-4 py-2 text-xs text-gray-600 select-none flex-shrink-0"
         style="grid-template-columns:10px 150px minmax(0,1fr) 90px 100px 56px 220px">
         <div></div>
         <div class="px-2">Task ID</div>
@@ -24,7 +24,7 @@
       </div>
 
       <!-- rows -->
-      <div class="overflow-y-auto" style="max-height:calc(100vh - 220px)">
+      <div class="overflow-y-auto" style="flex:1; min-height:0">
         <div v-for="t in paged" :key="t.task_id"
           class="grid items-center border-b border-gray-200 last:border-0 px-4 hover:bg-gray-50 transition-colors"
           style="grid-template-columns:10px 150px minmax(0,1fr) 90px 100px 56px 220px; min-height:40px">
@@ -71,20 +71,9 @@
           </div>
 
           <div class="px-2 flex items-center justify-end gap-1 flex-nowrap">
-            <button v-if="t.status === 'running' || t.status === 'pending'" @click="$emit('stop', t.task_id)"
-              class="text-xs text-red-500 hover:text-white hover:bg-red-600 border border-red-200 px-1.5 py-px rounded transition-colors">
-              停止
-            </button>
-            <button v-if="t.status === 'running' && isDouyin(t.target_url)"
-              @click="$emit('ranklist-check', t)"
-              class="text-xs text-amber-600 hover:text-white hover:bg-amber-600 border border-orange-200 px-1.5 py-px rounded transition-colors">
-              榜单
-            </button>
-            <button v-if="t.status === 'running'"
-              @click="$emit('screenshot-take', t)"
-              class="text-xs text-gray-400 hover:text-white hover:bg-gray-100 border border-gray-200/50 px-1.5 py-px rounded transition-colors">
-              截图
-            </button>
+            <span :class="['text-xs px-1.5 py-px rounded font-mono', t.status==='running'?'text-amber-600':'text-gray-400']">
+              {{ t.completed ?? 0 }}/{{ t.count }}
+            </span>
           </div>
         </div>
       </div>
@@ -127,7 +116,6 @@
 import { ref, computed } from 'vue';
 
 const props = defineProps({ tasks: { type: Array, default: () => [] } });
-defineEmits(['stop', 'ranklist-check', 'screenshot-take']);
 
 const PAGE_SIZE = 50;
 const page = ref(1);

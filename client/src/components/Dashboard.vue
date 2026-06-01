@@ -1,135 +1,132 @@
 <template>
   <div style="display:flex; flex-direction:column; height:calc(100vh - 96px); gap:6px">
 
-    <!-- ① 统计栏 -->
-    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0"
-      class="bg-white border border-gray-200 rounded-lg px-3 py-1.5">
-      <span class="text-xs text-gray-500">在线</span>
-      <span class="text-sm font-bold" style="min-width:20px; text-align:center; color:var(--success)">{{ onlineWorkers }}</span>
-      <span style="color:var(--tx-4)">·</span>
-      <span class="text-xs text-gray-500">运行</span>
-      <span class="text-sm font-bold" style="min-width:20px; text-align:center; color:var(--warning)">{{ busyNodes }}</span>
-      <span style="color:var(--tx-4)">·</span>
-      <span class="text-xs text-gray-500">空闲</span>
-      <span class="text-sm font-bold text-gray-600" style="min-width:20px; text-align:center">{{ idleNodes }}</span>
-      <span style="flex:1"></span>
-      <span class="text-xs text-gray-400">调度</span>
-      <button @click="setMode('sequential')"
-        :class="['text-xs px-2 py-0.5 rounded transition-colors', dispatchMode==='sequential' ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']"
-        :style="dispatchMode==='sequential' ? 'background:var(--primary)' : ''">顺序</button>
-      <button @click="setMode('random')"
-        :class="['text-xs px-2 py-0.5 rounded transition-colors', dispatchMode==='random' ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']"
-        :style="dispatchMode==='random' ? 'background:var(--primary)' : ''">随机</button>
-    </div>
-
-    <!-- ② 中间区域 (flex-1)：URL + Worker -->
-    <div style="flex:1; min-height:0; display:flex; flex-direction:column; gap:6px">
-
-      <!-- 执行中 URL：内容自适应，最多 30vh，超出滚动 -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-y-auto" style="flex-shrink:0; max-height:30vh">
-        <div v-if="!urlGroups.length" class="text-xs text-gray-600 text-center py-3">暂无执行中的任务</div>
-        <div v-for="group in urlGroups" :key="group.url"
-          style="display:flex; align-items:center; gap:8px; padding:6px 12px; border-bottom:1px solid var(--bd-color)"
-          class="hover:bg-gray-50 transition-colors">
-          <div class="font-mono text-xs" style="width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; color:var(--primary)" :title="group.url">{{ group.url }}</div>
-          <span class="text-xs text-gray-400" style="width:24px; text-align:right; flex-shrink:0">{{ group.nodes.length }}</span>
-          <div style="flex:1; min-width:0; display:flex; align-items:center; overflow:hidden; gap:4px">
-            <template v-for="(nodes, wid) in groupByWorker(group.nodes)" :key="wid">
-              <div style="display:flex; gap:1px; flex-shrink:0">
-                <button v-for="n in nodes" :key="n.profileName"
-                  :title="`${wid} · ${n.profileName}\n点击停止`"
-                  @click="stopNode(n.workerId, n.profileName)"
-                  style="width:14px; height:12px; border-radius:2px; flex-shrink:0"
-                  class="bg-emerald-500 hover:bg-red-500 transition-colors cursor-pointer" />
-              </div>
-            </template>
-          </div>
-          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0">
-            <button v-for="d in timeAdjusts" :key="d.label" @click="adjust(group.url, d.val)"
-              class="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-              style="font-size:10px; padding:1px 4px">{{ d.label }}</button>
-            <button @click="checkRanklist(group.nodes)"
-              class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors"
-              style="font-size:10px; padding:1px 6px; margin-left:4px">榜单</button>
-            <button @click="douyinReload(group.nodes)"
-              class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors"
-              style="font-size:10px; padding:1px 6px">刷新</button>
-            <button @click="stopUrl(group.url)"
-              class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
-              style="font-size:10px; padding:1px 6px; margin-left:4px">停止</button>
-          </div>
+    <!-- Worker 列表 -->
+    <div class="bg-white border border-gray-200 rounded-xl" style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
+      <!-- 标题栏 -->
+      <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between" style="flex-shrink:0">
+        <h2 class="text-sm font-semibold">Worker 节点</h2>
+        <div class="flex items-center gap-3 text-xs text-gray-600">
+          <span>在线 <b style="color:var(--success)">{{ onlineWorkers }}</b></span>
+          <span>运行 <b style="color:var(--warning)">{{ busyNodes }}</b></span>
+          <span>空闲 <b>{{ idleNodes }}</b></span>
+          <span style="color:#d1d5db">|</span>
+          <span class="text-gray-400">每次</span>
+          <input v-model.number="perWorkerBatch" @change="savePerWorkerBatch" type="number" min="1"
+            class="bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-400 text-center"
+            style="width:36px" />
+          <span class="text-gray-400">个/Worker</span>
+          <span style="color:#d1d5db">|</span>
+          <button @click="setMode('sequential')"
+            :class="['text-xs px-2 py-0.5 rounded transition-colors', dispatchMode==='sequential' ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']"
+            :style="dispatchMode==='sequential' ? 'background:var(--primary)' : ''">顺序</button>
+          <button @click="setMode('random')"
+            :class="['text-xs px-2 py-0.5 rounded transition-colors', dispatchMode==='random' ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']"
+            :style="dispatchMode==='random' ? 'background:var(--primary)' : ''">随机</button>
         </div>
       </div>
-
-      <!-- Worker 状态：占满中间区域剩余空间，超出内部滚动 -->
-      <div class="bg-white border border-gray-200 rounded-lg" style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
+      <!-- Worker 内容 -->
+      <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
         <div v-if="!workers.length" class="text-xs text-gray-600 text-center py-4">无 Worker 连接</div>
         <div v-else style="flex:1; min-height:0; overflow-y:auto">
+          <!-- 列标题行 -->
+          <div class="grid items-center border-b border-gray-200 px-4 py-2 text-xs text-gray-600 select-none"
+            style="grid-template-columns:16px 16px 90px 52px 1fr 56px 1fr minmax(210px,auto); position:sticky; top:0; z-index:10; background:#fff">
+            <span></span>
+            <span></span>
+            <span>节点</span>
+            <span>登录</span>
+            <span>用户名</span>
+            <span class="text-center">排名</span>
+            <span>进度</span>
+            <span class="text-right">操作</span>
+          </div>
           <template v-for="w in workers" :key="w.workerId">
             <!-- Worker 标题行 -->
-            <div @click="toggleWorker(w.workerId)" style="display:flex; align-items:center; gap:6px; padding:4px 10px; background:var(--bg-page); border-bottom:1px solid var(--bd-color); position:sticky; top:0; z-index:10; cursor:pointer; user-select:none">
-              <span class="text-gray-400 flex-shrink-0" style="font-size:10px; width:10px">{{ collapsedWorkers.has(w.workerId) ? '▶' : '▼' }}</span>
-              <span :class="w.connected ? 'bg-emerald-500' : 'bg-red-500'" class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
-              <span class="font-mono text-xs font-medium" style="color:var(--primary)">{{ w.workerId }}</span>
-              <span class="text-xs text-gray-400">{{ w.slots.busy }}/{{ w.slots.total }} 运行</span>
+            <div @click="toggleWorker(w.workerId)"
+              style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:var(--bg-page); border-bottom:1px solid var(--bd-color); position:sticky; top:25px; z-index:9; cursor:pointer; user-select:none">
+              <span class="text-xs text-gray-400 flex-shrink-0" style="width:10px">{{ collapsedWorkers.has(w.workerId) ? '▶' : '▼' }}</span>
+              <input type="checkbox" :checked="selectedWorkers.has(w.workerId)"
+                @click.stop="handleWorkerSelect($event, w.workerId)"
+                style="cursor:pointer; flex-shrink:0" />
+              <span :class="w.connected ? 'bg-emerald-400' : 'bg-red-400'" class="rounded-full flex-shrink-0" style="width:6px; height:6px"></span>
+              <span class="font-mono text-xs font-semibold text-gray-800 flex-shrink-0">{{ w.workerId }}</span>
+              <span class="text-xs text-gray-400 flex-shrink-0 bg-gray-100 border border-gray-200 rounded font-mono" style="padding:0 5px; line-height:18px">{{ w.slots.busy }}/{{ w.slots.total }}</span>
               <span style="flex:1"></span>
-              <button @click.stop="checkRanklist(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName})))"
-                class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors"
-                style="font-size:10px; padding:1px 6px">榜单</button>
-              <button @click.stop="douyinReload(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName})))"
-                class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors"
-                style="font-size:10px; padding:1px 6px">刷新所有节点</button>
-              <button v-if="w.slots.busy > 0" @click.stop="stopWorker(w.workerId)"
-                class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
-                style="font-size:10px; padding:1px 8px">停止全部</button>
+              <div style="display:flex; gap:4px; flex-shrink:0">
+                <button @click.stop="checkRanklist(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName,rank:p.rank,nickname:p.nickname,isLoggedIn:p.isLoggedIn})))"
+                  class="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors" style="padding:1px 7px">获取榜单</button>
+                <button @click.stop="stopUnloggedWorker(w)"
+                  class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:1px 7px">停未登陆</button>
+                <button @click.stop="stopUnrankedWorker(w)"
+                  class="text-xs bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-500 rounded transition-colors" style="padding:1px 7px">停未上榜</button>
+                <button @click.stop="douyinReload(w.profiles.filter(p=>p.state==='busy' && p.isLoggedIn && (p.rank===null||p.rank<=0)).map(p=>({workerId:w.workerId,profileName:p.profileName})))"
+                  class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:1px 7px">刷新未上榜</button>
+                <button @click.stop="stopWorker(w.workerId)"
+                  class="text-xs bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-500 rounded transition-colors" style="padding:1px 7px">全停</button>
+              </div>
             </div>
             <!-- 该 Worker 下各 Profile 行 -->
-            <div v-if="!collapsedWorkers.has(w.workerId)"
-              v-for="p in w.profiles" :key="p.profileName"
-              class="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
-              style="display:flex; align-items:center; gap:6px; padding:4px 10px 4px 24px">
-              <!-- 状态点 -->
-              <span :class="p.state==='busy' ? 'bg-emerald-500' : p.state==='error' ? 'bg-red-400' : 'bg-gray-300'"
-                class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
-              <!-- Profile 名 -->
-              <span class="text-xs text-gray-500 font-mono flex-shrink-0" style="width:72px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" :title="p.profileName">{{ p.profileName }}</span>
-              <!-- rank 标签 -->
-              <span v-if="p.rank !== null"
-                :class="p.rank > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-red-50 border-red-200 text-red-500'"
-                class="border rounded flex-shrink-0 font-mono"
-                style="font-size:10px; padding:0 4px; min-width:28px; text-align:center">
-                {{ p.rank > 0 ? '#' + p.rank : '未上榜' }}
-              </span>
-              <span v-else class="text-gray-300 flex-shrink-0" style="font-size:10px; min-width:28px">—</span>
-              <!-- 页面标题 + 进度（单行） -->
-              <div class="flex-shrink-1" style="min-width:0; display:flex; align-items:center; gap:4px; overflow:hidden">
-                <span class="text-xs text-gray-400 truncate" :title="p.currentUrl ?? ''">{{ p.currentTitle || p.currentUrl || '' }}</span>
-                <template v-if="getProgress(w.workerId, p.profileName)">
-                  <span class="text-gray-300 flex-shrink-0" style="font-size:10px">·</span>
-                  <span class="text-gray-400 font-mono flex-shrink-0" style="font-size:10px">{{ getProgress(w.workerId, p.profileName).step }}/{{ getProgress(w.workerId, p.profileName).total }}</span>
-                  <span class="text-gray-400 flex-shrink-0" style="font-size:10px">{{ getProgress(w.workerId, p.profileName).action }}</span>
-                </template>
+            <template v-if="!collapsedWorkers.has(w.workerId)">
+              <div v-for="p in w.profiles" :key="p.profileName"
+                class="hover:bg-gray-50 transition-colors"
+                style="display:grid; grid-template-columns:16px 16px 90px 52px 1fr 56px 1fr minmax(210px,auto); align-items:center; padding:4px 10px; border-bottom:1px solid var(--bd-color); min-height:36px">
+                <!-- 状态点 -->
+                <span style="padding-left:4px">
+                  <span :class="p.state==='busy' ? 'bg-emerald-500' : p.state==='error' ? 'bg-red-400' : 'bg-gray-300'"
+                    class="w-1.5 h-1.5 rounded-full inline-block"></span>
+                </span>
+                <!-- 勾选占位 -->
+                <span></span>
+                <!-- Profile 名 -->
+                <span class="text-xs font-mono text-gray-500 truncate" :title="p.profileName">{{ p.profileName }}</span>
+                <!-- 登录态 -->
+                <span>
+                  <span v-if="p.isLoggedIn === false"
+                    class="text-xs border rounded bg-red-50 border-red-200 text-red-500" style="padding:0 4px; white-space:nowrap">未登录</span>
+                  <span v-else-if="p.isLoggedIn === true"
+                    class="text-xs border rounded bg-emerald-50 border-emerald-200 text-emerald-600" style="padding:0 4px; white-space:nowrap">已登录</span>
+                  <span v-else class="text-xs text-gray-300">—</span>
+                </span>
+                <!-- 用户名 -->
+                <span class="text-xs text-gray-600 truncate" :title="p.nickname ?? ''">{{ p.nickname || '' }}</span>
+                <!-- 排名 -->
+                <span class="text-center">
+                  <span v-if="p.rank !== null"
+                    :class="p.rank > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-orange-50 border-orange-200 text-orange-500'"
+                    class="text-xs border rounded font-mono" style="padding:0 4px">
+                    {{ p.rank > 0 ? '#' + p.rank : '未上榜' }}
+                  </span>
+                  <span v-else class="text-xs text-gray-300">—</span>
+                </span>
+                <!-- 页面标题 + 进度 -->
+                <div style="display:flex; align-items:center; gap:4px; overflow:hidden; min-width:0">
+                  <span class="text-xs text-gray-400 truncate" :title="p.currentUrl ?? ''">{{ p.currentTitle || p.currentUrl || '' }}</span>
+                  <template v-if="getProgress(w.workerId, p.profileName)">
+                    <span class="text-xs text-gray-300 flex-shrink-0">·</span>
+                    <span class="text-xs text-gray-400 font-mono flex-shrink-0">{{ getProgress(w.workerId, p.profileName).step }}/{{ getProgress(w.workerId, p.profileName).total }}</span>
+                    <span class="text-xs text-gray-400 flex-shrink-0">{{ getProgress(w.workerId, p.profileName).action }}</span>
+                  </template>
+                </div>
+                <!-- 操作 -->
+                <div style="display:flex; justify-content:flex-end; gap:3px">
+                  <button @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])"
+                    class="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors" style="padding:0 5px">榜单</button>
+                  <button @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])"
+                    class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:0 5px">刷新</button>
+                  <button v-if="p.state === 'busy'" @click="takeScreenshot(w.workerId, p.profileName, p.taskId)"
+                    class="text-xs bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-500 rounded transition-colors" style="padding:0 5px">截图</button>
+                  <button v-if="p.state === 'busy'" @click="stopNode(w.workerId, p.profileName)"
+                    class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:0 5px">停止</button>
+                </div>
               </div>
-              <!-- 操作 -->
-              <div style="display:flex; gap:3px; flex-shrink:0; margin-left:auto">
-                <button @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])"
-                  class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors"
-                  style="font-size:10px; padding:0 5px">榜单</button>
-                <button @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])"
-                  class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors"
-                  style="font-size:10px; padding:0 5px">刷新</button>
-                <button v-if="p.state === 'busy'" @click="stopNode(w.workerId, p.profileName)"
-                  class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
-                  style="font-size:10px; padding:0 5px">停止</button>
-              </div>
-            </div>
+            </template>
           </template>
         </div>
-      </div>
+      </div><!-- /Worker 内容 -->
+    </div><!-- /Worker 列表卡片 -->
 
-    </div><!-- /中间区域 -->
-
-    <!-- ③ 发布任务：固定在底部 -->
+    <!-- 发布任务：固定在底部 -->
     <div class="bg-white border border-gray-200 rounded-lg" style="flex-shrink:0; display:flex; align-items:center; gap:12px; padding:10px 16px">
       <input v-model="form.target_url" placeholder="目标 URL" type="text"
         class="bg-gray-50 border border-gray-200 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-blue-400"
@@ -171,17 +168,21 @@
 import { ref, computed, onMounted, watch, inject } from 'vue';
 import {
   adjustTime, fetchSchedulerConfig, setSchedulerConfig,
-  fetchTemplates, submitTask,
+  fetchTemplates, submitTask, triggerScreenshot,
 } from '../api.js';
 
 const wsSend       = inject('wsSend', () => {});
 const progressMap  = inject('progressMap', ref({}));
+const setTab       = inject('setTab', () => {});
 
 const props = defineProps({ workers: { type: Array, default: () => [] } });
 const emit  = defineEmits(['refresh']);
 
-// ── 调度模式 ──────────────────────────────────────────
-const dispatchMode = ref('sequential');
+// ── 调度模式 & 每次启动数 ──────────────────────────────
+const dispatchMode   = ref('sequential');
+const perWorkerBatch = ref(1);
+const selectedWorkers = ref(new Set());
+const lastSelectedWorkerId = ref(null);
 const timeAdjusts  = [
   { label: '-10m', val: -600 },
   { label: '-1m',  val: -60  },
@@ -228,7 +229,7 @@ const urlGroups = computed(() => {
     for (const p of w.profiles) {
       if (p.state === 'busy' && p.targetUrl) {
         if (!map.has(p.targetUrl)) map.set(p.targetUrl, []);
-        map.get(p.targetUrl).push({ workerId: w.workerId, profileName: p.profileName });
+        map.get(p.targetUrl).push({ workerId: w.workerId, profileName: p.profileName, isLoggedIn: p.isLoggedIn, rank: p.rank });
       }
     }
   }
@@ -243,9 +244,36 @@ function groupByWorker(nodes) {
 
 // ── 辅助函数 ──────────────────────────────────────────
 
+// ── Worker 多选 ───────────────────────────────────────
+function toggleSelectWorker(wid) {
+  const s = new Set(selectedWorkers.value);
+  s.has(wid) ? s.delete(wid) : s.add(wid);
+  selectedWorkers.value = s;
+}
+
+function handleWorkerSelect(e, wid) {
+  const ids = props.workers.map(w => w.workerId);
+  const idx = ids.indexOf(wid);
+  if (e.shiftKey && lastSelectedWorkerId.value !== null) {
+    const lastIdx = ids.indexOf(lastSelectedWorkerId.value);
+    const from = Math.min(idx, lastIdx);
+    const to   = Math.max(idx, lastIdx);
+    const s = new Set(selectedWorkers.value);
+    for (let i = from; i <= to; i++) s.add(ids[i]);
+    selectedWorkers.value = s;
+  } else {
+    toggleSelectWorker(wid);
+  }
+  lastSelectedWorkerId.value = wid;
+}
+
 // ── 操作 ──────────────────────────────────────────────
 async function setMode(mode) {
-  try { await setSchedulerConfig(mode); dispatchMode.value = mode; } catch (err) { alert(err.message); }
+  try { await setSchedulerConfig({ dispatch_mode: mode }); dispatchMode.value = mode; } catch (err) { alert(err.message); }
+}
+
+async function savePerWorkerBatch() {
+  try { await setSchedulerConfig({ per_worker_batch: perWorkerBatch.value }); } catch (err) { alert(err.message); }
 }
 async function adjust(url, delta) {
   try { await adjustTime(url, delta); emit('refresh'); } catch (err) { alert(err.message); }
@@ -287,6 +315,38 @@ function stopWorker(workerId) {
 function stopNode(workerId, profile) {
   wsSend({ type: 'stop_node', worker_id: workerId, profile });
 }
+async function takeScreenshot(workerId, profile, taskId) {
+  await triggerScreenshot({ worker_id: workerId, profile, task_id: taskId });
+  setTab('screenshots');
+}
+
+function stopGroupUnlogged(nodes) {
+  const targets = nodes.filter(n => n.isLoggedIn === false);
+  if (!targets.length) return;
+  if (!confirm(`停止 ${targets.length} 个未登陆节点？`)) return;
+  for (const n of targets) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
+}
+
+function stopGroupUnranked(nodes) {
+  const targets = nodes.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0));
+  if (!targets.length) return;
+  if (!confirm(`停止 ${targets.length} 个未上榜节点？`)) return;
+  for (const n of targets) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
+}
+
+function stopUnloggedWorker(w) {
+  const targets = w.profiles.filter(p => p.isLoggedIn === false && p.state === 'busy');
+  if (!targets.length) return;
+  if (!confirm(`停止 ${w.workerId} 上 ${targets.length} 个未登录节点？`)) return;
+  for (const p of targets) wsSend({ type: 'stop_node', worker_id: w.workerId, profile: p.profileName });
+}
+
+function stopUnrankedWorker(w) {
+  const targets = w.profiles.filter(p => p.isLoggedIn === true && (p.rank === null || p.rank <= 0) && p.state === 'busy');
+  if (!targets.length) return;
+  if (!confirm(`停止 ${w.workerId} 上 ${targets.length} 个未上榜节点？`)) return;
+  for (const p of targets) wsSend({ type: 'stop_node', worker_id: w.workerId, profile: p.profileName });
+}
 
 async function submit() {
   submitMsg.value = '';
@@ -295,12 +355,16 @@ async function submit() {
   if (!form.value.task_type) { submitMsg.value = '请选择任务类型'; submitError.value = true; return; }
   submitting.value = true;
   try {
-    await submitTask({
+    const payload = {
       target_url: form.value.target_url,
       task_type:  form.value.task_type,
       count:      form.value.count,
       task_time:  form.value.duration_min * 60,
-    });
+    };
+    if (selectedWorkers.value.size > 0) {
+      payload.target_worker_ids = [...selectedWorkers.value];
+    }
+    await submitTask(payload);
     submitMsg.value = '已发布';
     emit('refresh');
     setTimeout(() => { submitMsg.value = ''; }, 3000);
@@ -314,7 +378,7 @@ async function submit() {
 }
 
 onMounted(async () => {
-  try { const cfg = await fetchSchedulerConfig(); dispatchMode.value = cfg.dispatch_mode; } catch {}
+  try { const cfg = await fetchSchedulerConfig(); dispatchMode.value = cfg.dispatch_mode; perWorkerBatch.value = cfg.per_worker_batch ?? 1; } catch {}
   templates.value = await fetchTemplates().catch(() => []);
   if (!form.value.task_type && templates.value.length) {
     form.value.task_type = templates.value[0].name;
