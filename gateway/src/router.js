@@ -14,23 +14,8 @@ function safeName(raw) {
   return cleaned.length > 0 ? cleaned : null;
 }
 
-// 合法的 pipeline 动作类型白名单
-// 与 worker/src/actions.js 的 ACTION_MAP 保持同步
-// 新增或删除动作时，worker actions.js 和此处必须同时更新
-const VALID_ACTION_TYPES = new Set([
-  'navigate', 'reload',
-  'wait', 'dwell',
-  'click', 'dblclick', 'hover', 'fill', 'scroll', 'mousemove',
-  'screenshot', 'antidetect',
-  'pause-video', 'mute-video',
-  'wait-for', 'hover-capture',
-  'press',
-  'intercept',
-  'eval', 'run-code',
-  'close',
-]);
-
 // 校验 pipeline 数组格式及每个步骤的合法性
+// 内置类型做格式校验，插件类型由 Worker 执行时报错，gateway 不拦截
 function validatePipeline(pipeline) {
   if (!Array.isArray(pipeline) || pipeline.length === 0) {
     return 'pipeline 必须是非空数组';
@@ -40,11 +25,8 @@ function validatePipeline(pipeline) {
     if (!step || typeof step !== 'object' || Array.isArray(step)) {
       return `step[${i}]: 必须是普通对象`;
     }
-    if (!step.type || typeof step.type !== 'string') {
+    if (!step.type || typeof step.type !== 'string' || !step.type.trim()) {
       return `step[${i}]: 缺少 "type" 字段`;
-    }
-    if (!VALID_ACTION_TYPES.has(step.type)) {
-      return `step[${i}]: 未知类型 "${step.type}"`;
     }
   }
   return null;
