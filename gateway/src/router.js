@@ -380,19 +380,8 @@ function createRouter({ taskStore, registry, scheduler }) {
 
     try { fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true }); } catch {}
 
-    // 保留每个 Profile 最近 MAX_SHOTS_PER_PROFILE 张，超出则删除最旧的
-    try {
-      const existing = fs.readdirSync(SCREENSHOTS_DIR)
-        .filter(f => f.startsWith(`${profile}_`) && f.endsWith('.jpg'))
-        .sort();
-      if (existing.length >= MAX_SHOTS_PER_PROFILE) {
-        existing.slice(0, existing.length - MAX_SHOTS_PER_PROFILE + 1).forEach(f => {
-          try { fs.unlinkSync(path.join(SCREENSHOTS_DIR, f)); } catch {}
-        });
-      }
-    } catch {}
-
-    const filename = `${profile}_${ts}.jpg`;
+    // 每个 worker+profile 固定一个文件，直接覆盖，不膨胀
+    const filename = `${safeName(workerId || 'unknown')}_${profile}.jpg`;
     try {
       fs.writeFileSync(path.join(SCREENSHOTS_DIR, filename), req.body);
     } catch (err) {
@@ -426,13 +415,13 @@ function createRouter({ taskStore, registry, scheduler }) {
       const meta = await taskStore.getScreenshotsMeta(files);
       const list = files.map(f => {
         const m = meta[f] ?? {};
-        const parts = f.replace('.jpg', '').split('_');
-        const ts = parts.pop();
+        const stat = fs.statSync(path.join(SCREENSHOTS_DIR, f));
+        const ts = m.timestamp ?? stat.mtimeMs;
         return {
           worker_id: m.worker_id ?? '',
-          profile  : m.profile   ?? parts.join('_'),
-          timestamp: m.timestamp ?? parseInt(ts) ?? 0,
-          url      : `/data/screenshots/${f}`,
+          profile  : m.profile   ?? f.replace('.jpg', ''),
+          timestamp: ts,
+          url      : `/data/screenshots/${f}?t=${ts}`,
         };
       });
       return res.json(list);

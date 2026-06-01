@@ -33,7 +33,7 @@
       </div>
       <div v-else-if="!filtered.length" class="text-sm text-gray-600 text-center py-12">无匹配截图</div>
       <div v-else class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
-        <div v-for="s in paged" :key="s.url"
+        <div v-for="s in paged" :key="s.worker_id + ':' + s.profile"
           class="bg-white border border-gray-200 rounded-xl overflow-hidden cursor-pointer group hover:border-indigo-600/50 transition-colors"
           @click="preview = s">
           <div class="relative overflow-hidden bg-gray-100" style="height:100px">
