@@ -270,6 +270,14 @@ const STEP_DEFS = {
       { key: 'all',      label: '匹配全部',   type: 'checkbox', default: false },
     ]},
 
+  press: {
+    label: '键盘按键', badge: 'bg-purple-50 text-purple-600',
+    desc: '按下键盘按键，可聚焦到指定元素后再按',
+    fields: [
+      { key: 'key',      label: '按键',             type: 'text', placeholder: 'Enter / Tab / Escape / Control+a' },
+      { key: 'selector', label: '选择器（可选）',    type: 'text', placeholder: '留空则全局按键' },
+    ]},
+
   // ─── 脚本执行 ───────────────────────────────────────────────────────────────
   eval: {
     label: '执行页面 JS', badge: 'bg-gray-100 text-gray-600',
