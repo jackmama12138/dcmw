@@ -162,6 +162,19 @@
     </div>
 
   </div>
+
+  <!-- Toast 通知栈 -->
+  <teleport to="body">
+    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; gap:8px; z-index:9999; pointer-events:none; align-items:center">
+      <transition-group name="toast">
+        <div v-for="t in toasts" :key="t.id"
+          class="text-sm rounded-xl shadow-2xl px-5 py-3 font-medium"
+          :style="t.type === 'success' ? 'background:rgba(16,185,129,0.92); color:#fff' : t.type === 'warn' ? 'background:rgba(245,158,11,0.92); color:#fff' : 'background:rgba(31,41,55,0.88); color:#fff'">
+          {{ t.msg }}
+        </div>
+      </transition-group>
+    </div>
+  </teleport>
 </template>
 
 <script setup>
@@ -174,6 +187,40 @@ import {
 const wsSend       = inject('wsSend', () => {});
 const progressMap  = inject('progressMap', ref({}));
 const setTab       = inject('setTab', () => {});
+
+// ── Toast ─────────────────────────────────────────────
+const toasts = ref([]);
+let _toastId = 0;
+function toast(msg, type = 'info') {
+  if (toasts.value.length >= 5) toasts.value.shift();
+  const id = ++_toastId;
+  toasts.value.push({ id, msg, type });
+  setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
+}
+
+// ── 榜单回流追踪 ──────────────────────────────────────
+const pendingRankKeys = ref(new Set());
+const rankSentTotal   = ref(0);
+
+watch(() => props.workers, (newWorkers) => {
+  if (!newWorkers?.length || !pendingRankKeys.value.size) return;
+  const pending = new Set(pendingRankKeys.value);
+  let changed = false;
+  for (const w of newWorkers) {
+    for (const p of w.profiles) {
+      if (pending.has(`${w.workerId}:${p.profileName}`) && p.rank !== null) {
+        pending.delete(`${w.workerId}:${p.profileName}`);
+        changed = true;
+      }
+    }
+  }
+  if (!changed) return;
+  pendingRankKeys.value = pending;
+  if (!pending.size) {
+    toast(`榜单已全部返回（${rankSentTotal.value} 个节点）`, 'success');
+    rankSentTotal.value = 0;
+  }
+}, { deep: true });
 
 const props = defineProps({ workers: { type: Array, default: () => [] } });
 const emit  = defineEmits(['refresh']);
@@ -279,8 +326,8 @@ async function adjust(url, delta) {
   try { await adjustTime(url, delta); emit('refresh'); } catch (err) { alert(err.message); }
 }
 function stopUrl(url) {
-  if (!confirm(`停止所有执行 "${url}" 的节点？`)) return;
   wsSend({ type: 'stop_url', target_url: url });
+  toast(`已停止 URL: ${url.slice(0, 40)}${url.length > 40 ? '…' : ''}`);
 }
 function getProgress(workerId, profileName) {
   return progressMap.value[`${workerId}:${profileName}`] ?? null;
@@ -297,23 +344,27 @@ function getProfileRank(workerId, profileName) {
 }
 
 function checkRanklist(nodes) {
-  // 已有排名（rank > 0）的节点跳过
   const targets = nodes
     .filter(n => (getProfileRank(n.workerId, n.profileName) ?? 0) <= 0)
     .map(n => ({ worker_id: n.workerId, profile: n.profileName }));
-  if (targets.length) wsSend({ type: 'ranklist_check', targets });
+  if (!targets.length) { toast('无需检查（均已上榜）', 'warn'); return; }
+  for (const t of targets) pendingRankKeys.value.add(`${t.worker_id}:${t.profile}`);
+  rankSentTotal.value += targets.length;
+  wsSend({ type: 'ranklist_check', targets });
+  toast(`已向 ${targets.length} 个节点发送榜单检查`);
 }
 function douyinReload(nodes) {
-  for (const n of nodes) {
-    wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
-  }
+  if (!nodes.length) { toast('无需刷新的节点', 'warn'); return; }
+  for (const n of nodes) wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
+  toast(`已刷新 ${nodes.length} 个节点`);
 }
 function stopWorker(workerId) {
-  if (!confirm(`停止 Worker ${workerId} 上所有节点？`)) return;
   wsSend({ type: 'stop_worker', worker_id: workerId });
+  toast(`已停止 Worker ${workerId} 所有节点`);
 }
 function stopNode(workerId, profile) {
   wsSend({ type: 'stop_node', worker_id: workerId, profile });
+  toast(`已停止节点 ${profile}`);
 }
 async function takeScreenshot(workerId, profile, taskId) {
   await triggerScreenshot({ worker_id: workerId, profile, task_id: taskId });
@@ -322,30 +373,30 @@ async function takeScreenshot(workerId, profile, taskId) {
 
 function stopGroupUnlogged(nodes) {
   const targets = nodes.filter(n => n.isLoggedIn === false);
-  if (!targets.length) return;
-  if (!confirm(`停止 ${targets.length} 个未登陆节点？`)) return;
+  if (!targets.length) { toast('无未登录节点', 'warn'); return; }
   for (const n of targets) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
+  toast(`已停止 ${targets.length} 个未登录节点`);
 }
 
 function stopGroupUnranked(nodes) {
   const targets = nodes.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0));
-  if (!targets.length) return;
-  if (!confirm(`停止 ${targets.length} 个未上榜节点？`)) return;
+  if (!targets.length) { toast('无未上榜节点', 'warn'); return; }
   for (const n of targets) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
+  toast(`已停止 ${targets.length} 个未上榜节点`);
 }
 
 function stopUnloggedWorker(w) {
   const targets = w.profiles.filter(p => p.isLoggedIn === false && p.state === 'busy');
-  if (!targets.length) return;
-  if (!confirm(`停止 ${w.workerId} 上 ${targets.length} 个未登录节点？`)) return;
+  if (!targets.length) { toast(`${w.workerId} 无未登录节点`, 'warn'); return; }
   for (const p of targets) wsSend({ type: 'stop_node', worker_id: w.workerId, profile: p.profileName });
+  toast(`已停止 ${w.workerId} 上 ${targets.length} 个未登录节点`);
 }
 
 function stopUnrankedWorker(w) {
   const targets = w.profiles.filter(p => p.isLoggedIn === true && (p.rank === null || p.rank <= 0) && p.state === 'busy');
-  if (!targets.length) return;
-  if (!confirm(`停止 ${w.workerId} 上 ${targets.length} 个未上榜节点？`)) return;
+  if (!targets.length) { toast(`${w.workerId} 无未上榜节点`, 'warn'); return; }
   for (const p of targets) wsSend({ type: 'stop_node', worker_id: w.workerId, profile: p.profileName });
+  toast(`已停止 ${w.workerId} 上 ${targets.length} 个未上榜节点`);
 }
 
 async function submit() {
@@ -385,3 +436,9 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+.toast-enter-active, .toast-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.toast-enter-from { opacity: 0; transform: translateY(8px); }
+.toast-leave-to   { opacity: 0; transform: translateY(8px); }
+</style>
