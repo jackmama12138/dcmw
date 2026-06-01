@@ -60,6 +60,19 @@
       </main>
     </div>
   </div>
+
+  <!-- 全局 Toast 栈 -->
+  <teleport to="body">
+    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; gap:8px; z-index:9999; pointer-events:none; align-items:center">
+      <transition-group name="toast">
+        <div v-for="t in toasts" :key="t.id"
+          class="text-sm rounded-xl shadow-2xl px-5 py-3 font-medium"
+          :style="t.type === 'success' ? 'background:rgba(16,185,129,0.92); color:#fff' : t.type === 'warn' ? 'background:rgba(245,158,11,0.92); color:#fff' : 'background:rgba(31,41,55,0.88); color:#fff'">
+          {{ t.msg }}
+        </div>
+      </transition-group>
+    </div>
+  </teleport>
 </template>
 
 <script setup>
@@ -73,6 +86,16 @@ import ScreenshotViewer from './components/ScreenshotViewer.vue';
 import CaptureViewer   from './components/CaptureViewer.vue';
 import RanklistViewer  from './components/RanklistViewer.vue';
 import { fetchTasks, fetchWorkers, stopTask as apiStop, triggerRanklistCheck, triggerScreenshot } from './api.js';
+
+// ── 全局 Toast ────────────────────────────────────────
+const toasts = ref([]);
+let _toastId = 0;
+function toast(msg, type = 'info') {
+  if (toasts.value.length >= 5) toasts.value.shift();
+  const id = ++_toastId;
+  toasts.value.push({ id, msg, type });
+  setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
+}
 
 const TABS = [
   { id: 'dashboard',   label: '运维面板',  icon: '◈', desc: '实时节点与任务概览' },
@@ -185,6 +208,7 @@ provide('wsSend', wsSend);
 provide('progressMap', progressMap);
 provide('screenshotNotifications', screenshotNotifications);
 provide('setTab', (tab) => { activeTab.value = tab; });
+provide('toast', toast);
 
 onMounted(() => {
   refresh(); // 初始全量拉取兜底（WS 未连接前保证有数据）
@@ -196,3 +220,9 @@ onUnmounted(() => {
   ws = null;
 });
 </script>
+
+<style>
+.toast-enter-active, .toast-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.toast-enter-from { opacity: 0; transform: translateY(8px); }
+.toast-leave-to   { opacity: 0; transform: translateY(8px); }
+</style>

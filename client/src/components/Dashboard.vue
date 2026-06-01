@@ -163,18 +163,6 @@
 
   </div>
 
-  <!-- Toast 通知栈 -->
-  <teleport to="body">
-    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; gap:8px; z-index:9999; pointer-events:none; align-items:center">
-      <transition-group name="toast">
-        <div v-for="t in toasts" :key="t.id"
-          class="text-sm rounded-xl shadow-2xl px-5 py-3 font-medium"
-          :style="t.type === 'success' ? 'background:rgba(16,185,129,0.92); color:#fff' : t.type === 'warn' ? 'background:rgba(245,158,11,0.92); color:#fff' : 'background:rgba(31,41,55,0.88); color:#fff'">
-          {{ t.msg }}
-        </div>
-      </transition-group>
-    </div>
-  </teleport>
 </template>
 
 <script setup>
@@ -184,19 +172,13 @@ import {
   fetchTemplates, submitTask, triggerScreenshot,
 } from '../api.js';
 
+const props = defineProps({ workers: { type: Array, default: () => [] } });
+const emit  = defineEmits(['refresh']);
+
 const wsSend       = inject('wsSend', () => {});
 const progressMap  = inject('progressMap', ref({}));
 const setTab       = inject('setTab', () => {});
-
-// ── Toast ─────────────────────────────────────────────
-const toasts = ref([]);
-let _toastId = 0;
-function toast(msg, type = 'info') {
-  if (toasts.value.length >= 5) toasts.value.shift();
-  const id = ++_toastId;
-  toasts.value.push({ id, msg, type });
-  setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 3000);
-}
+const toast        = inject('toast', () => {});
 
 // ── 榜单回流追踪 ──────────────────────────────────────
 const pendingRankKeys = ref(new Set());
@@ -221,9 +203,6 @@ watch(() => props.workers, (newWorkers) => {
     rankSentTotal.value = 0;
   }
 }, { deep: true });
-
-const props = defineProps({ workers: { type: Array, default: () => [] } });
-const emit  = defineEmits(['refresh']);
 
 // ── 调度模式 & 每次启动数 ──────────────────────────────
 const dispatchMode   = ref('sequential');
@@ -437,8 +416,3 @@ onMounted(async () => {
 });
 </script>
 
-<style scoped>
-.toast-enter-active, .toast-leave-active { transition: opacity 0.2s, transform 0.2s; }
-.toast-enter-from { opacity: 0; transform: translateY(8px); }
-.toast-leave-to   { opacity: 0; transform: translateY(8px); }
-</style>

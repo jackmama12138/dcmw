@@ -61,6 +61,7 @@ import { adjustTime, triggerScreenshot } from '../api.js';
 const props  = defineProps({ workers: { type: Array, default: () => [] } });
 const wsSend = inject('wsSend', () => {});
 const setTab = inject('setTab', () => {});
+const toast  = inject('toast', () => {});
 
 const urlGroups = computed(() => {
   const map = new Map();
@@ -80,32 +81,44 @@ const urlGroups = computed(() => {
 
 const totalRunning = computed(() => urlGroups.value.reduce((s, g) => s + g.nodes.length, 0));
 
-function stopNode(workerId, profile) { wsSend({ type: 'stop_node', worker_id: workerId, profile }); }
-function stopUrl(url) { if (!confirm(`停止所有执行 "${url}" 的节点？`)) return; wsSend({ type: 'stop_url', target_url: url }); }
-async function adjustUrl(url, delta) { try { await adjustTime(url, delta); } catch (err) { alert(err.message); } }
-
+function stopNode(workerId, profile) {
+  wsSend({ type: 'stop_node', worker_id: workerId, profile });
+  toast(`已停止节点 ${profile}`);
+}
+function stopUrl(url) {
+  wsSend({ type: 'stop_url', target_url: url });
+  toast(`已停止 URL: ${url.slice(0, 40)}${url.length > 40 ? '…' : ''}`);
+}
+async function adjustUrl(url, delta) {
+  try { await adjustTime(url, delta); } catch (err) { toast(err.message, 'warn'); }
+}
 function checkRanklistUrl(nodes) {
   const targets = nodes.filter(n => (n.rank ?? 0) <= 0).map(n => ({ worker_id: n.workerId, profile: n.profileName }));
-  if (targets.length) wsSend({ type: 'ranklist_check', targets });
+  if (!targets.length) { toast('无需检查（均已上榜）', 'warn'); return; }
+  wsSend({ type: 'ranklist_check', targets });
+  toast(`已向 ${targets.length} 个节点发送榜单检查`);
 }
 function stopGroupUnlogged(nodes) {
   const t = nodes.filter(n => n.isLoggedIn === false);
-  if (!t.length) return;
-  if (!confirm(`停止 ${t.length} 个未登陆节点？`)) return;
+  if (!t.length) { toast('无未登录节点', 'warn'); return; }
   for (const n of t) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
+  toast(`已停止 ${t.length} 个未登录节点`);
 }
 function stopGroupUnranked(nodes) {
   const t = nodes.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0));
-  if (!t.length) return;
-  if (!confirm(`停止 ${t.length} 个未上榜节点？`)) return;
+  if (!t.length) { toast('无未上榜节点', 'warn'); return; }
   for (const n of t) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
+  toast(`已停止 ${t.length} 个未上榜节点`);
 }
 function reloadUnrankedUrl(nodes) {
-  for (const n of nodes.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0)))
-    wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
+  const t = nodes.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0));
+  if (!t.length) { toast('无需刷新的节点', 'warn'); return; }
+  for (const n of t) wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
+  toast(`已刷新 ${t.length} 个未上榜节点`);
 }
 async function screenshotGroup(nodes) {
   await Promise.allSettled(nodes.map(n => triggerScreenshot({ worker_id: n.workerId, profile: n.profileName, task_id: n.taskId })));
+  toast(`已触发 ${nodes.length} 个节点截图`);
   setTab('screenshots');
 }
 </script>
