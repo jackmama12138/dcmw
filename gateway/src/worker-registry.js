@@ -26,6 +26,12 @@ class WorkerRegistry {
     this.workers.set(workerId, { ws, profiles, schemas, lastHeartbeat: Date.now() });
   }
 
+  // 更新指定 Worker 的 schemas（插件热更新后单独上报，不走 register）
+  updateSchemas(workerId, schemas) {
+    const w = this.workers.get(workerId);
+    if (w) w.schemas = schemas;
+  }
+
   // 合并所有在线 Worker 上报的插件 schemas
   getSchemas() {
     const merged = {};

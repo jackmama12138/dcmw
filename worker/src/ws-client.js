@@ -17,8 +17,8 @@ class GatewayClient {
     this.onTask = onTask;
     this.onStop = onStop ?? (() => {});
     this.onUpdateTime = onUpdateTime ?? (() => {});
-    this.onLoadPlugin   = (msg) => { actionsLoader.loadPlugin(msg.name, msg.code);   this._register(); };
-    this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name);           this._register(); };
+    this.onLoadPlugin   = (msg) => { actionsLoader.loadPlugin(msg.name, msg.code);   this._sendSchemasUpdate(); };
+    this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name);           this._sendSchemasUpdate(); };
     this.onRanklist      = onRanklist      ?? (() => {});
     this.onScreenshot    = onScreenshot    ?? (() => {});
     this.getStatus       = getStatus       ?? (() => ({})); // 返回当前所有运行中任务的状态
@@ -117,6 +117,15 @@ class GatewayClient {
       profiles: this.pool.profileNames,
       slots   : this.pool.stats(),
       schemas : actionsLoader.getSchemas(),
+    });
+  }
+
+  // 插件加载/卸载后只更新 schemas，不触发 gateway 重新推送插件
+  _sendSchemasUpdate() {
+    this.send({
+      type     : 'schemas_update',
+      worker_id: this.workerId,
+      schemas  : actionsLoader.getSchemas(),
     });
   }
 

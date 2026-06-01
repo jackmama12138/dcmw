@@ -155,6 +155,10 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       break;
     }
 
+    case 'schemas_update':
+      registry.updateSchemas(workerId, msg.schemas ?? {});
+      break;
+
     case 'heartbeat':
       // 更新心跳时间戳并记录各 Profile 的当前页面信息
       registry.updateHeartbeat(workerId, msg.profiles ?? {});
