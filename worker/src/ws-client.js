@@ -1,5 +1,6 @@
-const WebSocket = require('ws');
-const logger = require('./logger');
+const WebSocket    = require('ws');
+const logger       = require('./logger');
+const actionsLoader = require('./actions-loader');
 
 const HEARTBEAT_MS = 30_000;
 const RECONNECT_BASE_MS = 3_000;
@@ -16,7 +17,9 @@ class GatewayClient {
     this.onTask = onTask;
     this.onStop = onStop ?? (() => {});
     this.onUpdateTime = onUpdateTime ?? (() => {});
-    this.onReloadActions = onReloadActions ?? (() => {});
+    this.onReloadActions  = onReloadActions  ?? (() => {});
+    this.onLoadPlugin   = (msg) => { actionsLoader.loadPlugin(msg.name, msg.code);   this._register(); };
+    this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name);           this._register(); };
     this.onRanklist      = onRanklist      ?? (() => {});
     this.onScreenshot    = onScreenshot    ?? (() => {});
     this.getStatus       = getStatus       ?? (() => ({})); // 返回当前所有运行中任务的状态
@@ -109,13 +112,12 @@ class GatewayClient {
 
   // 向 gateway 发送注册消息
   _register() {
-    const { getSchemas } = require('./actions-loader');
     this.send({
       type    : 'register',
       worker_id: this.workerId,
       profiles: this.pool.profileNames,
       slots   : this.pool.stats(),
-      schemas : getSchemas(),
+      schemas : actionsLoader.getSchemas(),
     });
   }
 
@@ -203,6 +205,16 @@ class GatewayClient {
       case 'reload_actions':
         logger.info('收到来自 gateway 的 reload_actions');
         this.onReloadActions(msg);
+        break;
+
+      case 'load_plugin':
+        logger.info(`收到来自 gateway 的 load_plugin: ${msg.name}`);
+        this.onLoadPlugin(msg);
+        break;
+
+      case 'unload_plugin':
+        logger.info(`收到来自 gateway 的 unload_plugin: ${msg.name}`);
+        this.onUnloadPlugin(msg);
         break;
 
       case 'run_ranklist':
