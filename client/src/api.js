@@ -77,8 +77,10 @@ export async function fetchSchedulerConfig() {
   return data;
 }
 
-export async function setSchedulerConfig(dispatch_mode) {
-  const { data } = await http.post('/api/scheduler/config', { dispatch_mode });
+export async function setSchedulerConfig(patch) {
+  // 兼容旧调用：setSchedulerConfig('sequential') → { dispatch_mode }
+  const body = typeof patch === 'string' ? { dispatch_mode: patch } : patch;
+  const { data } = await http.post('/api/scheduler/config', body);
   return data;
 }
 

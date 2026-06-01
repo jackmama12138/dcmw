@@ -160,18 +160,31 @@ class ChromePool {
     if (!slot) return;
 
     if (slot.context && !forceClose) {
-      // 懒关闭：保存窗口状态，导航到空白页，启动空闲计时器
+      // 懒关闭：导航到空白页，若失败说明 Chrome 已不健康，改为强制关闭
       await this._saveWindowState(profileName, slot.context);
+      let navOk = false;
       try {
         const pages = slot.context.pages();
-        if (pages.length > 0) await pages[0].goto('about:blank').catch(() => {});
+        if (pages.length > 0) {
+          await pages[0].goto('about:blank', { timeout: 3000 });
+          navOk = true;
+        } else {
+          navOk = true; // 没有页面也视为正常
+        }
       } catch {}
-      slot.state = STATE.IDLE;
-      logger.info(`[${profileName}] 已释放 → 空闲（Chrome 保留）`);
 
-      // 10分钟无任务则真正关闭，释放内存
-      slot._idleTimer = setTimeout(() => this._forceClose(profileName), 10 * 60 * 1000);
-      return;
+      if (!navOk) {
+        // Chrome 无响应，跳过懒关闭直接强制关闭
+        logger.warn(`[${profileName}] about:blank 超时，Chrome 不健康，强制关闭`);
+        forceClose = true;
+        // 继续走下方 forceClose 逻辑
+      } else {
+        slot.state = STATE.IDLE;
+        logger.info(`[${profileName}] 已释放 → 空闲（Chrome 保留）`);
+        // 10分钟无任务则真正关闭，释放内存
+        slot._idleTimer = setTimeout(() => this._forceClose(profileName), 10 * 60 * 1000);
+        return;
+      }
     }
 
     // 真正关闭 Chrome

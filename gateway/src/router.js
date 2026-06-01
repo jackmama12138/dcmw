@@ -102,6 +102,8 @@ function createRouter({ taskStore, registry, scheduler }) {
     if (body.target_node) {
       const { worker_id, profile } = body.target_node;
       available = idleSlots.filter(s => s.workerId === worker_id && s.profileName === profile).length;
+    } else if (Array.isArray(body.target_worker_ids) && body.target_worker_ids.length) {
+      available = idleSlots.filter(s => body.target_worker_ids.includes(s.workerId)).length;
     } else if (body.target_worker_id) {
       available = idleSlots.filter(s => s.workerId === body.target_worker_id).length;
     } else {
@@ -291,16 +293,15 @@ function createRouter({ taskStore, registry, scheduler }) {
 
   // 获取当前调度模式
   router.get('/api/scheduler/config', (_req, res) => {
-    res.json({ dispatch_mode: scheduler.getMode() });
+    res.json({ dispatch_mode: scheduler.getMode(), per_worker_batch: scheduler.getPerWorkerBatch() });
   });
 
-  // 设置调度模式（sequential / random）
   router.post('/api/scheduler/config', (req, res) => {
-    const { dispatch_mode } = req.body ?? {};
-    if (!dispatch_mode) return res.status(400).json({ error: 'dispatch_mode 是必填项' });
+    const { dispatch_mode, per_worker_batch } = req.body ?? {};
     try {
-      scheduler.setMode(dispatch_mode);
-      return res.json({ ok: true, dispatch_mode });
+      if (dispatch_mode) scheduler.setMode(dispatch_mode);
+      if (per_worker_batch != null) scheduler.setPerWorkerBatch(per_worker_batch);
+      return res.json({ ok: true, dispatch_mode: scheduler.getMode(), per_worker_batch: scheduler.getPerWorkerBatch() });
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -481,14 +482,14 @@ function createRouter({ taskStore, registry, scheduler }) {
 
   // 接收 Worker 上报的榜单检查结果
   router.post('/api/ranklist', async (req, res) => {
-    const { profile, worker_id, rank } = req.body ?? {};
+    const { profile, worker_id, rank, nickname, is_logged_in } = req.body ?? {};
     if (!profile || !worker_id) {
       return res.status(400).json({ error: 'profile 和 worker_id 是必填项' });
     }
     try {
       await taskStore.addRanklist(req.body);
       if (typeof rank === 'number') {
-        registry.updateRank(worker_id, profile, rank);
+        registry.updateRank(worker_id, profile, rank, nickname, is_logged_in);
         sseBus.notifyWorkerPatch(worker_id);
       }
       return res.json({ ok: true });

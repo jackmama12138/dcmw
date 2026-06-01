@@ -296,6 +296,9 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
       if (slot.taskId) await taskStore.atomicForceComplete(String(slot.taskId));
       registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
       registry.markIdle(worker_id, profile);
+      // 打停止时间戳，60s 内阻止心跳把 idle 改回 busy
+      const _stoppedSlot = registry.workers.get(worker_id)?.profiles.get(profile);
+      if (_stoppedSlot) _stoppedSlot.stoppedAt = Date.now();
       logger.info(`[WS] 停止节点 → ${worker_id}:${profile}`);
       sseBus.notifyAll();
       break;
@@ -308,9 +311,12 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
       const busySlots = registry.getBusySlots(worker_id);
       const taskIds = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
       await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+      const _now1 = Date.now();
       for (const { profileName, taskId } of busySlots) {
         registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
         registry.markIdle(worker_id, profileName);
+        const _s = registry.workers.get(worker_id)?.profiles.get(profileName);
+        if (_s) _s.stoppedAt = _now1;
       }
       logger.info(`[WS] 停止 Worker ${worker_id}: ${busySlots.length} 个节点`);
       sseBus.notifyAll();
@@ -324,8 +330,12 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
       const slots = registry.getSlotsByUrl(target_url);
       const taskIds = [...new Set(slots.map(s => s.taskId).filter(Boolean))];
       await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
+      const _now2 = Date.now();
       for (const { workerId, profileName, taskId } of slots) {
         registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
+        registry.markIdle(workerId, profileName);
+        const _s = registry.workers.get(workerId)?.profiles.get(profileName);
+        if (_s) _s.stoppedAt = _now2;
       }
       logger.info(`[WS] 按 URL 停止 [${target_url}]: ${slots.length} 个节点`);
       sseBus.notifyAll();

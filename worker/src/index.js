@@ -153,6 +153,7 @@ const client = new GatewayClient({
   getStatus() {
     const result = {};
     for (const [key, ctrl] of runningTasks.entries()) {
+      if (ctrl.stopped) continue; // 已收到停止信号，不再上报 busy，防止 gateway 心跳恢复
       const colonIdx = key.indexOf(':');
       const profile  = key.slice(colonIdx + 1);
       result[profile] = {

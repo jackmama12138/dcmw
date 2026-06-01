@@ -55,13 +55,17 @@ class WorkerRegistry {
       const slot = w.profiles.get(profileName);
       if (!slot) continue;
 
-      // 更新实时页面状态
-      if (info.url   !== undefined) slot.currentUrl   = info.url   || null;
-      if (info.title !== undefined) slot.currentTitle = info.title || null;
+      // 只对 busy 的 slot 更新页面信息，避免关闭过渡期心跳把 idle slot 的 currentUrl 重新写成脏值
+      if (slot.state === 'busy') {
+        if (info.url   !== undefined) slot.currentUrl   = info.url   || null;
+        if (info.title !== undefined) slot.currentTitle = info.title || null;
+      }
 
       // gateway 重启后 slot 被初始化为 idle，但 worker 仍在执行任务
       // 心跳携带 task_id + state=busy 时自动恢复映射
-      if (info.state === 'busy' && info.task_id && slot.state === 'idle') {
+      // 但若 gateway 主动发过 stop（stoppedAt 60s 内），不允许心跳把 idle 改回 busy
+      const recentlyStopped = slot.stoppedAt && (Date.now() - slot.stoppedAt < 60_000);
+      if (info.state === 'busy' && info.task_id && slot.state === 'idle' && !recentlyStopped) {
         slot.state     = 'busy';
         slot.taskId    = info.task_id;
         slot.targetUrl = info.target_url || null;
@@ -176,12 +180,15 @@ class WorkerRegistry {
     }
   }
 
-  // 更新指定 profile 的榜单排名（由 POST /api/ranklist 触发）
-  updateRank(workerId, profileName, rank) {
+  // 更新指定 profile 的榜单信息（由 POST /api/ranklist 触发）
+  updateRank(workerId, profileName, rank, nickname, isLoggedIn) {
     const w = this.workers.get(workerId);
     if (!w) return;
     const s = w.profiles.get(profileName);
-    if (s) s.rank = rank;
+    if (!s) return;
+    if (typeof rank       === 'number')  s.rank       = rank;
+    if (typeof nickname   === 'string')  s.nickname   = nickname;
+    if (typeof isLoggedIn === 'boolean') s.isLoggedIn = isLoggedIn;
   }
 
   // 生成单个 Worker 的状态快照
@@ -192,9 +199,9 @@ class WorkerRegistry {
     const stats = { idle: 0, busy: 0, total: profiles.size };
     const slotList = [];
     for (const [profileName, s] of profiles) {
-      const { state, taskId, targetUrl, currentUrl, currentTitle, rank } = s;
+      const { state, taskId, targetUrl, currentUrl, currentTitle, rank, nickname, isLoggedIn } = s;
       stats[state] = (stats[state] ?? 0) + 1;
-      slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null, rank: rank ?? null });
+      slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null, rank: rank ?? null, nickname: nickname ?? null, isLoggedIn: isLoggedIn ?? null });
     }
     return { workerId, slots: stats, profiles: slotList, lastHeartbeat, connected: ws.readyState === WebSocket.OPEN };
   }

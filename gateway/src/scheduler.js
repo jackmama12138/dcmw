@@ -41,13 +41,12 @@ class Scheduler {
     this._taskStore = taskStore;
     this._registry = registry;
     this._dispatching = false;
-    this._pendingDispatch = false; // Fix ⑥
+    this._pendingDispatch = false;
     this._mode = 'sequential';    // 'sequential' | 'random'
+    this._perWorkerBatch = 1;     // 每次调度同一 Worker 最多启动几个节点
   }
 
-  getMode() {
-    return this._mode;
-  }
+  getMode() { return this._mode; }
 
   setMode(mode) {
     if (!MODES.includes(mode)) {
@@ -55,6 +54,13 @@ class Scheduler {
     }
     this._mode = mode;
     logger.info(`Dispatch mode → ${mode}`);
+  }
+
+  getPerWorkerBatch() { return this._perWorkerBatch; }
+
+  setPerWorkerBatch(n) {
+    this._perWorkerBatch = Math.max(1, Number(n) || 1);
+    logger.info(`Per-worker batch → ${this._perWorkerBatch}`);
   }
 
   // Fix ⑥: if a dispatch is already running, mark pending instead of dropping.
@@ -96,6 +102,10 @@ class Scheduler {
       ? shuffleSlots(rawSlots)
       : interleaveByWorker(rawSlots);
 
+    // 每 Worker 本轮最多新启动数量（不计已在运行的节点）
+    const perBatch = this._perWorkerBatch;
+    const workerDispatched = new Map(); // workerId → 本轮已派发数（从 0 开始）
+
     const usedSlots = new Set();
 
     for (const task of tasks) {
@@ -112,20 +122,27 @@ class Scheduler {
         candidateSlots = candidateSlots.filter(
           s => s.workerId === worker_id && s.profileName === profile
         );
+      } else if (Array.isArray(task.target_worker_ids) && task.target_worker_ids.length) {
+        candidateSlots = candidateSlots.filter(s => task.target_worker_ids.includes(s.workerId));
       } else if (task.target_worker_id) {
         candidateSlots = candidateSlots.filter(s => s.workerId === task.target_worker_id);
       }
 
-      const batch = candidateSlots.slice(0, remaining);
-      // Mark used in the original idleSlots index
-      for (const slot of batch) {
-        usedSlots.add(idleSlots.indexOf(slot));
+      // 每 Worker 限流：逐个挑选 slot，边挑边计数，保证本轮每 Worker 不超过 perBatch
+      const batch = [];
+      for (const slot of candidateSlots) {
+        if (batch.length >= remaining) break;
+        const already = workerDispatched.get(slot.workerId) ?? 0;
+        if (already < perBatch) {
+          batch.push(slot);
+          workerDispatched.set(slot.workerId, already + 1);
+          usedSlots.add(idleSlots.indexOf(slot));
+        }
       }
 
       let sentCount = 0;
 
       for (const { workerId, profileName } of batch) {
-        // Fix ⑧: pass taskId + targetUrl so disconnect handler and URL-control APIs work
         this._registry.markBusy(workerId, profileName, task.task_id, task.target_url);
 
         const sent = this._registry.sendTo(workerId, {

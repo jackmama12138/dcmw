@@ -58,7 +58,7 @@ async function main() {
 
   // Periodic re-dispatch: if tasks are waiting but all workers were offline,
   // no event would trigger dispatch after they reconnect — this acts as a safety net.
-  setInterval(() => scheduler.dispatch(), 30_000);
+  setInterval(() => scheduler.dispatch(), 10_000);
 
   // ─── Fix ⑦: heartbeat timeout watcher ────────────────────────────────────
   // Workers send heartbeats every 30s. After 90s of silence (3 missed beats),

@@ -21,12 +21,15 @@ const args = process.argv.slice(2);
 let cdpEndpoint  = null;
 let targetUrl    = null;
 let userDataDir  = null;
+let waitSeconds  = 5;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--cdp') {
     cdpEndpoint = args[++i];
   } else if (args[i] === '--user-data-dir') {
     userDataDir = args[++i];
+  } else if (args[i] === '--wait') {
+    waitSeconds = Math.max(1, parseInt(args[++i]) || 5);
   } else if (!args[i].startsWith('--')) {
     targetUrl = args[i];
   }
@@ -106,24 +109,26 @@ async function extractElements(page) {
   let domNodes = [];
   try {
     domNodes = await page.$$eval(
-      'a, button, input, textarea, select, [role], [data-testid], [placeholder]',
+      'a, button, input, textarea, select, [role], [data-testid], [placeholder], [contenteditable], [data-placeholder]',
       els => els.map(el => {
         const rect = el.getBoundingClientRect();
         // 过滤不可见元素
         if (rect.width === 0 && rect.height === 0) return null;
 
         const tag  = el.tagName.toLowerCase();
-        const ph   = el.getAttribute('placeholder');
+        const ph   = el.getAttribute('placeholder') || el.getAttribute('data-placeholder');
         const tid  = el.getAttribute('data-testid');
         const id   = el.id;
         const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
         const aria = el.getAttribute('aria-label') || '';
+        const ce   = el.getAttribute('contenteditable');
 
         const results = [];
-        if (ph)   results.push({ role: 'input',   name: ph,           extra: 'placeholder' });
-        if (tid)  results.push({ role: 'testid',  name: tid,          extra: 'testid' });
-        if (id)   results.push({ role: tag,        name: id,           extra: 'id' });
-        if (aria) results.push({ role: tag,        name: aria,         extra: 'aria-label' });
+        if (ph)   results.push({ role: 'input',       name: ph,   extra: 'placeholder' });
+        if (tid)  results.push({ role: 'testid',       name: tid,  extra: 'testid' });
+        if (id)   results.push({ role: tag,            name: id,   extra: 'id' });
+        if (aria) results.push({ role: tag,            name: aria, extra: 'aria-label' });
+        if (ce !== null && ph) results.push({ role: 'contenteditable', name: ph, extra: 'contenteditable' });
         if (text && tag === 'a')      results.push({ role: 'link',   name: text, extra: 'role' });
         if (text && tag === 'button') results.push({ role: 'button', name: text, extra: 'role' });
         return results.length > 0 ? results : null;
@@ -148,6 +153,7 @@ async function extractElements(page) {
     if (extra === 'placeholder') sel = `getByPlaceholder('${name.replace(/'/g, "\\'")}')`;
     else if (extra === 'testid') sel = `getByTestId('${name.replace(/'/g, "\\'")}')`;
     else if (extra === 'id')     sel = `#${name}`;
+    else if (extra === 'contenteditable') sel = `[contenteditable][placeholder='${name.replace(/'/g, "\\'")}'], [contenteditable][data-placeholder='${name.replace(/'/g, "\\'")}']`;
     else if (extra === 'role')       sel = buildSelector(role, name);
     else if (extra === 'aria-label') sel = `getByLabel('${name.replace(/'/g, "\\'")}')`;
     else continue;
@@ -263,7 +269,7 @@ async function main() {
       targetUrl = page.url();
     }
   } else {
-    const dir = userDataDir || require('path').join(require('os').homedir(), 'ChromeProfiles/Profile2');
+    const dir = userDataDir || require('path').join(require('os').homedir(), 'ChromeProfiles/Profile1');
     context = await chromium.launchPersistentContext(dir, {
       headless      : false,
       executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -274,7 +280,12 @@ async function main() {
     page = ctxPages.length > 0 ? ctxPages[0] : await context.newPage();
     console.log(`导航到 ${targetUrl}...`);
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1000);
+    process.stdout.write(`等待页面渲染 ${waitSeconds}s`);
+    for (let i = 0; i < waitSeconds; i++) {
+      await page.waitForTimeout(1000);
+      process.stdout.write('.');
+    }
+    process.stdout.write('\n');
   }
 
   console.log('提取元素中...');

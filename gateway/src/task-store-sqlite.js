@@ -70,8 +70,9 @@ class TaskStoreSQLite {
       count: Math.max(1, Number(raw.count) || 1),
       running: 0, completed: 0, failed: 0,
       status: 'pending',
-      target_worker_id: raw.target_worker_id ?? null,
-      target_node: raw.target_node ?? null,
+      target_worker_id:  raw.target_worker_id ?? null,
+      target_worker_ids: Array.isArray(raw.target_worker_ids) && raw.target_worker_ids.length ? raw.target_worker_ids : null,
+      target_node:       raw.target_node ?? null,
       created_at: now,
       updated_at: now,
     };
