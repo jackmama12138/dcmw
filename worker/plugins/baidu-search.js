@@ -25,7 +25,7 @@ module.exports = {
       // 填写搜索框
       const { locator, error } = await resolveElement(
         page,
-        { selector: '#kw', timeout: 8000 },
+        { selector: '.chat-textarea', timeout: 8000 },
         'baidu-search',
       );
       if (error) return { ok: false, reason: error };
