@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, reactive, watch, onMounted } from 'vue';
 import draggable from 'vuedraggable';
 
 const props = defineProps({ modelValue: { type: Array, default: () => [] } });
@@ -120,6 +120,18 @@ watch(localSteps, (v) => {
 
 const newType = ref('navigate');
 
+// 从 gateway 拉取插件 schemas，动态合并进 STEP_DEFS
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/schemas');
+    if (!res.ok) return;
+    const schemas = await res.json();
+    for (const [type, def] of Object.entries(schemas)) {
+      if (!STEP_DEFS[type]) STEP_DEFS[type] = def;
+    }
+  } catch {}
+});
+
 // pipeline 步骤定义，与 gateway VALID_ACTION_TYPES 和 worker actions.js 保持同步
 // 新增动作时三处同步更新：gateway/src/router.js、worker/src/actions.js、此处
 //
@@ -130,7 +142,7 @@ const newType = ref('navigate');
 
 const ON_FAIL_FIELD = { key: 'on_fail', label: '失败行为', type: 'select', options: ['continue','stop','error'], default: 'continue' };
 
-const STEP_DEFS = {
+const STEP_DEFS = reactive({
   // ─── 页面控制 ───────────────────────────────────────────────────────────────
   navigate: {
     label: '打开页面', badge: 'bg-blue-50 text-blue-600',
@@ -288,7 +300,7 @@ const STEP_DEFS = {
     label: '执行 PW 脚本', badge: 'bg-gray-100 text-gray-600',
     desc: '在 Node.js 侧执行 Playwright 脚本，可访问 page/context/ctrl',
     fields: [{ key: 'code', label: 'PW 脚本', type: 'textarea', placeholder: "async ({ page, context, ctrl }) => { await page.click('button'); }" }] },
-};
+});
 
 function stepDef(type) {
   return STEP_DEFS[type] ?? { label: type, badge: 'bg-gray-100 text-gray-600', fields: [] };

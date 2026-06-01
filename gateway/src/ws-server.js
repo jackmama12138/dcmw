@@ -99,7 +99,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
         logger.warn(`[${workerId}] 注册时未携带 Profile`);
         return;
       }
-      registry.register(workerId, ws, profiles);
+      registry.register(workerId, ws, profiles, msg.schemas ?? {});
       logger.info(`[${workerId}] 已注册 — Profile 列表: [${profiles.join(', ')}]`);
 
       // 向新连接的 Worker 推送最新自定义动作代码，保证代码同步

@@ -109,11 +109,13 @@ class GatewayClient {
 
   // 向 gateway 发送注册消息
   _register() {
+    const { getSchemas } = require('./actions-loader');
     this.send({
-      type: 'register',
+      type    : 'register',
       worker_id: this.workerId,
       profiles: this.pool.profileNames,
-      slots: this.pool.stats(),
+      slots   : this.pool.stats(),
+      schemas : getSchemas(),
     });
   }
 

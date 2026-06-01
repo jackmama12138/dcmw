@@ -87,6 +87,9 @@ function _loadPlugins() {
   return merged;
 }
 
+// 合并后的 schema 表，与 _actionMap 同步重建
+let _schemaMap = {};
+
 // 重建全局 actionMap：builtin → plugins（后者覆盖前者）
 function _rebuild() {
   const builtin = _loadBuiltin();
@@ -95,13 +98,29 @@ function _rebuild() {
   // 旧格式兼容：builtin 模块是 legacyModule 时，不合并，整体代理
   if (builtin._legacyModule) {
     _legacyRunStep = builtin._legacyModule.runStep;
-    _actionMap = {};
+    _actionMap  = {};
+    _schemaMap  = {};
     return;
   }
 
   _legacyRunStep = null;
   _actionMap = { ...builtin, ...plugins };
-  logger.info(`actionMap 已重建：共 ${Object.keys(_actionMap).length} 个动作`);
+
+  // 收集插件导出的 schemas（builtin 无 schema，只收插件）
+  _schemaMap = {};
+  if (fs.existsSync(PLUGINS_DIR)) {
+    const files = fs.readdirSync(PLUGINS_DIR).filter(f => f.endsWith('.js')).sort();
+    for (const file of files) {
+      try {
+        const mod = require(path.join(PLUGINS_DIR, file));
+        if (mod && mod.schemas && typeof mod.schemas === 'object') {
+          Object.assign(_schemaMap, mod.schemas);
+        }
+      } catch {}
+    }
+  }
+
+  logger.info(`actionMap 已重建：共 ${Object.keys(_actionMap).length} 个动作，${Object.keys(_schemaMap).length} 个插件 schema`);
 }
 
 // 兼容旧格式的 runStep 代理（正常情况下为 null）
@@ -185,4 +204,7 @@ function runStep(context, step, ctrl) {
 // ─── 启动时初始化 ─────────────────────────────────────────────────────────────
 _rebuild();
 
-module.exports = { runStep, reload, resetToBuiltin, loadPlugin, unloadPlugin, listActions };
+// 返回所有插件的 schema 定义（供 Worker 上报给 gateway）
+function getSchemas() { return { ..._schemaMap }; }
+
+module.exports = { runStep, reload, resetToBuiltin, loadPlugin, unloadPlugin, listActions, getSchemas };

@@ -15,7 +15,7 @@ class WorkerRegistry {
   }
 
   // 注册 Worker 及其 Profile 列表（已存在则先删除旧记录）
-  register(workerId, ws, profileNames) {
+  register(workerId, ws, profileNames, schemas = {}) {
     if (!workerId || !ws) return;
     if (this.workers.has(workerId)) {
       this.workers.delete(workerId);
@@ -23,7 +23,16 @@ class WorkerRegistry {
     const profiles = new Map(
       profileNames.map(n => [n, { state: 'idle', taskId: null, targetUrl: null }])
     );
-    this.workers.set(workerId, { ws, profiles, lastHeartbeat: Date.now() });
+    this.workers.set(workerId, { ws, profiles, schemas, lastHeartbeat: Date.now() });
+  }
+
+  // 合并所有在线 Worker 上报的插件 schemas
+  getSchemas() {
+    const merged = {};
+    for (const { ws, schemas } of this.workers.values()) {
+      if (ws.readyState === 1 && schemas) Object.assign(merged, schemas);
+    }
+    return merged;
   }
 
   // 从注册表中移除 Worker

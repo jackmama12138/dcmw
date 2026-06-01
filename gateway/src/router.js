@@ -527,6 +527,10 @@ function createRouter({ taskStore, registry, scheduler }) {
   // ─── 状态查询接口 ─────────────────────────────────────────────────────────
 
   // 获取所有已连接 Worker 的状态摘要
+  router.get('/api/schemas', (_req, res) => {
+    res.json(registry.getSchemas());
+  });
+
   router.get('/api/workers', (_req, res) => {
     res.json(registry.summary());
   });
