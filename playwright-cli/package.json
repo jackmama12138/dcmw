@@ -1,0 +1,12 @@
+{
+  "name": "playwright-cli",
+  "version": "1.0.0",
+  "description": "交互式元素选择器查找工具，辅助生成 dcmw pipeline selector",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

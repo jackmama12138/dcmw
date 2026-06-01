@@ -169,12 +169,18 @@ async function humanClick(page, locator, dblClick = false) {
     logger.warn('click: 元素位置不稳定，使用最新坐标继续');
   }
 
-  // ③ viewport 检查：中心点必须在视口内
+  // ③ 先尝试滚动到视口，再做中心点检查
+  try { await locator.scrollIntoViewIfNeeded({ timeout: 3000 }); } catch {}
+
+  let boxFinal;
+  try { boxFinal = await locator.boundingBox(); } catch { boxFinal = null; }
+  if (boxFinal) box = boxFinal;
+
   const vs  = page.viewportSize() ?? { width: 1280, height: 720 };
   const cx  = box.x + box.width  / 2;
   const cy  = box.y + box.height / 2;
   if (cx < 0 || cy < 0 || cx > vs.width || cy > vs.height) {
-    logger.warn(`click: 元素中心点 (${cx.toFixed(0)}, ${cy.toFixed(0)}) 超出视口 ${vs.width}×${vs.height}`);
+    logger.warn(`click: 元素中心点 (${cx.toFixed(0)}, ${cy.toFixed(0)}) 超出视口 ${vs.width}×${vs.height}，滚动后仍不可见`);
     return { ok: false, reason: 'not_in_viewport' };
   }
 
@@ -459,6 +465,32 @@ async function scroll(context, { x = 0, y = 300, selector = null }) {
   } else {
     await page.mouse.wheel(x, y);
   }
+  return { ok: true };
+}
+
+// 按下键盘按键（全局或聚焦到指定元素后再按）
+// key: Playwright 键名，如 'Enter' 'Tab' 'Escape' 'ArrowDown' 'Control+a'
+// selector: 可选，先点击该元素聚焦再按键
+// 返回 { ok } 或 { ok: false, reason }
+async function press(context, params) {
+  const { key, selector } = params;
+  if (!key || typeof key !== 'string') return { ok: false, reason: 'no_key' };
+
+  const page = await getOrCreatePage(context);
+
+  if (selector) {
+    const { locator, error } = await resolveElement(page, params, 'press');
+    if (error) return { ok: false, reason: error, selector };
+    try {
+      await locator.press(key);
+    } catch (err) {
+      logger.warn(`press: ${err.message}`);
+      return { ok: false, reason: 'press_failed' };
+    }
+  } else {
+    await page.keyboard.press(key);
+  }
+
   return { ok: true };
 }
 
@@ -766,6 +798,7 @@ const actions = {
   fill,
   scroll,
   mousemove,
+  press,
   screenshot,
   antidetect,
   intercept,
