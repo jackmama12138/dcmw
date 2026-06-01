@@ -24,6 +24,7 @@ const VALID_ACTION_TYPES = new Set([
   'screenshot', 'antidetect',
   'pause-video', 'mute-video',
   'wait-for', 'hover-capture',
+  'press',
   'intercept',
   'eval', 'run-code',
   'close',
