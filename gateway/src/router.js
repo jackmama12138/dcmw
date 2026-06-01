@@ -34,6 +34,7 @@ function validatePipeline(pipeline) {
 
 const sseBus        = require('./sse-bus');
 const captureQueue  = require('./capture-queue');
+const clientBus     = require('./client-bus');
 
 // 创建并返回 Express Router，注册所有 API 路由
 function createRouter({ taskStore, registry, scheduler }) {
@@ -400,6 +401,16 @@ function createRouter({ taskStore, registry, scheduler }) {
 
     await taskStore.addScreenshotMeta(filename, { worker_id: workerId, profile, timestamp: ts });
     logger.info(`截图已保存: ${filename} Worker=${workerId}`);
+
+    // 实时通知前端有新截图
+    clientBus.broadcast({
+      type     : 'screenshot_done',
+      worker_id: workerId,
+      profile,
+      timestamp: ts,
+      path     : `/data/screenshots/${filename}`,
+    });
+
     return res.json({ ok: true, path: `/data/screenshots/${filename}` });
   });
 
@@ -441,16 +452,45 @@ function createRouter({ taskStore, registry, scheduler }) {
     return res.json({ ok: true });
   });
 
+  // 触发页面刷新（支持批量）
+  router.post('/api/reload', (req, res) => {
+    const body = req.body ?? {};
+    const targets = Array.isArray(body.targets)
+      ? body.targets
+      : [{ worker_id: body.worker_id, profile: body.profile }];
+
+    const results = [];
+    for (const { worker_id, profile } of targets) {
+      if (!worker_id || !profile) {
+        results.push({ worker_id, profile, ok: false, error: 'worker_id 和 profile 是必填项' });
+        continue;
+      }
+      const sent = registry.sendTo(worker_id, { type: 'run_reload', profile });
+      if (sent) {
+        logger.info(`触发刷新 → ${worker_id}:${profile}`);
+        results.push({ worker_id, profile, ok: true });
+      } else {
+        results.push({ worker_id, profile, ok: false, error: 'Worker 未连接' });
+      }
+    }
+    const allFailed = results.every(r => !r.ok);
+    return res.status(allFailed ? 404 : 200).json({ results });
+  });
+
   // ─── 榜单管理 ─────────────────────────────────────────────────────────────
 
   // 接收 Worker 上报的榜单检查结果
   router.post('/api/ranklist', async (req, res) => {
-    const { profile, worker_id } = req.body ?? {};
+    const { profile, worker_id, rank } = req.body ?? {};
     if (!profile || !worker_id) {
       return res.status(400).json({ error: 'profile 和 worker_id 是必填项' });
     }
     try {
       await taskStore.addRanklist(req.body);
+      if (typeof rank === 'number') {
+        registry.updateRank(worker_id, profile, rank);
+        sseBus.notifyWorkerPatch(worker_id);
+      }
       return res.json({ ok: true });
     } catch (err) {
       logger.error(`/api/ranklist POST 错误: ${err.message}`);
@@ -467,16 +507,32 @@ function createRouter({ taskStore, registry, scheduler }) {
     }
   });
 
-  // 触发指定节点执行榜单检查（fire-and-forget）
+  // 触发榜单检查（支持单个或批量）
+  // 单个：{ worker_id, profile, task_id }
+  // 批量：{ targets: [{ worker_id, profile, task_id }, ...] }
   router.post('/api/ranklist/check', (req, res) => {
-    const { worker_id, profile, task_id } = req.body ?? {};
-    if (!worker_id || !profile) {
-      return res.status(400).json({ error: 'worker_id 和 profile 是必填项' });
+    const body = req.body ?? {};
+    const targets = Array.isArray(body.targets)
+      ? body.targets
+      : [{ worker_id: body.worker_id, profile: body.profile, task_id: body.task_id }];
+
+    const results = [];
+    for (const { worker_id, profile, task_id } of targets) {
+      if (!worker_id || !profile) {
+        results.push({ worker_id, profile, ok: false, error: 'worker_id 和 profile 是必填项' });
+        continue;
+      }
+      const sent = registry.sendTo(worker_id, { type: 'run_ranklist', profile, task_id });
+      if (sent) {
+        logger.info(`触发榜单检查 → ${worker_id}:${profile}`);
+        results.push({ worker_id, profile, ok: true });
+      } else {
+        results.push({ worker_id, profile, ok: false, error: 'Worker 未连接' });
+      }
     }
-    const sent = registry.sendTo(worker_id, { type: 'run_ranklist', profile, task_id });
-    if (!sent) return res.status(404).json({ error: 'Worker 未连接' });
-    logger.info(`触发榜单检查 → ${worker_id}:${profile}`);
-    return res.json({ ok: true });
+
+    const allFailed = results.every(r => !r.ok);
+    return res.status(allFailed ? 404 : 200).json({ results });
   });
 
   // ─── 状态查询接口 ─────────────────────────────────────────────────────────

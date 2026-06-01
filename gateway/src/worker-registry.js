@@ -176,24 +176,32 @@ class WorkerRegistry {
     }
   }
 
+  // 更新指定 profile 的榜单排名（由 POST /api/ranklist 触发）
+  updateRank(workerId, profileName, rank) {
+    const w = this.workers.get(workerId);
+    if (!w) return;
+    const s = w.profiles.get(profileName);
+    if (s) s.rank = rank;
+  }
+
+  // 生成单个 Worker 的状态快照
+  workerSummary(workerId) {
+    const entry = this.workers.get(workerId);
+    if (!entry) return null;
+    const { ws, profiles, lastHeartbeat } = entry;
+    const stats = { idle: 0, busy: 0, total: profiles.size };
+    const slotList = [];
+    for (const [profileName, s] of profiles) {
+      const { state, taskId, targetUrl, currentUrl, currentTitle, rank } = s;
+      stats[state] = (stats[state] ?? 0) + 1;
+      slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null, rank: rank ?? null });
+    }
+    return { workerId, slots: stats, profiles: slotList, lastHeartbeat, connected: ws.readyState === WebSocket.OPEN };
+  }
+
   // 生成所有 Worker 的状态摘要（供前端展示）
   summary() {
-    return [...this.workers.entries()].map(([workerId, { ws, profiles, lastHeartbeat }]) => {
-      const stats = { idle: 0, busy: 0, total: profiles.size };
-      const slotList = [];
-      for (const [profileName, s] of profiles) {
-        const { state, taskId, targetUrl, currentUrl, currentTitle } = s;
-        stats[state] = (stats[state] ?? 0) + 1;
-        slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null });
-      }
-      return {
-        workerId,
-        slots: stats,
-        profiles: slotList,
-        lastHeartbeat,
-        connected: ws.readyState === WebSocket.OPEN,
-      };
-    });
+    return [...this.workers.keys()].map(id => this.workerSummary(id)).filter(Boolean);
   }
 }
 

@@ -29,7 +29,7 @@ async function httpNotify(profile, status, targetUrl, taskId) {
  * task_time 是停留/dwell 时长，不是最大执行超时。
  * 安全网定时器在 task_time + 300s 后触发，用于兜底捕获失控进程。
  */
-function runTask(context, task, { onComplete, pool }) {
+function runTask(context, task, { onComplete, onProgress, pool }) {
   // 构建任务控制器对象
   const ctrl = {
     stopped   : false,
@@ -73,14 +73,14 @@ function runTask(context, task, { onComplete, pool }) {
   for (const page of context.pages()) page.once('close', onPageClose);
   context.on('page', onNewPage);
 
-  _execute(context, task, { onComplete, ctrl, cleanup })
+  _execute(context, task, { onComplete, onProgress, ctrl, cleanup })
     .catch(err => logger.error(`[${task.profile}][task:${task.task_id}] runTask 崩溃: ${err.message}`));
 
   return ctrl;
 }
 
 // 异步执行 pipeline 步骤，包含安全网超时和 settle 去重保护
-async function _execute(context, task, { onComplete, ctrl, cleanup }) {
+async function _execute(context, task, { onComplete, onProgress, ctrl, cleanup }) {
   const { task_id, pipeline, task_time, target_url, profile } = task;
   const tag = `[${profile}][task:${task_id}]`;
 
@@ -112,11 +112,24 @@ async function _execute(context, task, { onComplete, ctrl, cleanup }) {
     await settle({ task_id, profile, status: 'timeout', target_url });
   }, safetyMs);
 
+  const startMs = Date.now();
+
   try {
     for (let i = 0; i < pipeline.length; i++) {
       if (settled || ctrl.stopped) break;
       const step = pipeline[i];
       logger.info(`${tag} 执行步骤 ${i + 1}/${pipeline.length}: ${step?.type}`);
+
+      onProgress?.({
+        type      : 'task_progress',
+        worker_id : process.env.WORKER_ID ?? '',
+        profile,
+        task_id,
+        step      : i + 1,
+        total     : pipeline.length,
+        action    : step?.type ?? '',
+        elapsed_ms: Date.now() - startMs,
+      });
 
       const result = await actionsLoader.runStep(context, step, ctrl);
 

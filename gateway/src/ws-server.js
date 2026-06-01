@@ -4,6 +4,7 @@ const fs   = require('fs');
 const path = require('path');
 const logger = require('./logger');
 const sseBus = require('./sse-bus');
+const clientBus = require('./client-bus');
 
 const PLUGINS_DIR = process.env.GATEWAY_PLUGINS_DIR
   ? path.resolve(process.env.GATEWAY_PLUGINS_DIR)
@@ -24,14 +25,34 @@ function readPlugins() {
 function createWsServer(httpServer, { registry, taskStore, scheduler }) {
   const wss = new WebSocket.Server({ noServer: true });
 
-  // 拦截 HTTP Upgrade 请求，仅处理指定路径的 WebSocket 升级
+  // 前端 WebSocket 服务器（/ws/client）
+  const clientWss = new WebSocket.Server({ noServer: true });
+
+  // 拦截 HTTP Upgrade 请求，按路径分发到不同 WS 服务器
   httpServer.on('upgrade', (req, socket, head) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
-    if (pathname !== '/ws/livetop') {
+    if (pathname === '/ws/client') {
+      clientWss.handleUpgrade(req, socket, head, (ws) => clientWss.emit('connection', ws, req));
+    } else if (pathname === '/ws/livetop') {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    } else {
       socket.destroy();
-      return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  });
+
+  // 前端 WS 连接处理
+  clientWss.on('connection', (ws) => {
+    clientBus.add(ws);
+    logger.info(`前端 WS 已连接，当前客户端数: ${clientBus.size}`);
+
+    // 连接后立即推送全量快照
+    handleClientMessage(ws, { type: 'subscribe' }, { registry, taskStore });
+
+    ws.on('message', (data) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+      handleClientMessage(ws, msg, { registry, taskStore });
+    });
   });
 
   wss.on('connection', (ws, req) => {
@@ -160,9 +181,8 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       break;
 
     case 'heartbeat':
-      // 更新心跳时间戳并记录各 Profile 的当前页面信息
       registry.updateHeartbeat(workerId, msg.profiles ?? {});
-      sseBus.notifyWorkers();
+      sseBus.notifyWorkerPatch(workerId);
       break;
 
     case 'task_result': {
@@ -216,12 +236,104 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       break;
     }
 
+    case 'task_progress':
+      // Worker 通过 WS 上报执行进度，直接广播给所有前端客户端
+      clientBus.broadcast(msg);
+      break;
+
     case 'pong':
       // 心跳应答，无需处理
       break;
 
     default:
       logger.warn(`[${workerId}] 未知消息类型: "${msg.type}"`);
+  }
+}
+
+// 处理前端 WS 消息
+async function handleClientMessage(ws, msg, { registry, taskStore }) {
+  switch (msg.type) {
+    case 'subscribe': {
+      // 推送全量快照
+      const [workers, tasks] = await Promise.all([
+        Promise.resolve(registry.summary()),
+        taskStore.getAll(100).catch(() => []),
+      ]);
+      ws.send(JSON.stringify({ type: 'workers_update', workers }));
+      ws.send(JSON.stringify({ type: 'tasks_update', tasks }));
+      break;
+    }
+
+    case 'ranklist_check': {
+      // { targets: [{ worker_id, profile }] }
+      const targets = Array.isArray(msg.targets) ? msg.targets : [];
+      for (const { worker_id, profile } of targets) {
+        if (worker_id && profile) {
+          registry.sendTo(worker_id, { type: 'run_ranklist', profile });
+          logger.info(`[WS] 触发榜单检查 → ${worker_id}:${profile}`);
+        }
+      }
+      break;
+    }
+
+    case 'run_action': {
+      // { worker_id, profile, action, params? }
+      const { worker_id, profile, action, params } = msg;
+      if (worker_id && profile && action) {
+        registry.sendTo(worker_id, { type: 'run_action', profile, action, params: params ?? {} });
+        logger.info(`[WS] 触发 action ${action} → ${worker_id}:${profile}`);
+      }
+      break;
+    }
+
+    case 'stop_node': {
+      // { worker_id, profile }
+      const { worker_id, profile } = msg;
+      if (!worker_id || !profile) break;
+      const w = registry.workers.get(worker_id);
+      const slot = w?.profiles.get(profile);
+      if (!slot || slot.state !== 'busy') break;
+      if (slot.taskId) await taskStore.atomicForceComplete(String(slot.taskId));
+      registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
+      registry.markIdle(worker_id, profile);
+      logger.info(`[WS] 停止节点 → ${worker_id}:${profile}`);
+      sseBus.notifyAll();
+      break;
+    }
+
+    case 'stop_worker': {
+      // { worker_id }
+      const { worker_id } = msg;
+      if (!worker_id) break;
+      const busySlots = registry.getBusySlots(worker_id);
+      const taskIds = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
+      await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+      for (const { profileName, taskId } of busySlots) {
+        registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
+        registry.markIdle(worker_id, profileName);
+      }
+      logger.info(`[WS] 停止 Worker ${worker_id}: ${busySlots.length} 个节点`);
+      sseBus.notifyAll();
+      break;
+    }
+
+    case 'stop_url': {
+      // { target_url }
+      const { target_url } = msg;
+      if (!target_url) break;
+      const slots = registry.getSlotsByUrl(target_url);
+      const taskIds = [...new Set(slots.map(s => s.taskId).filter(Boolean))];
+      await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
+      for (const { workerId, profileName, taskId } of slots) {
+        registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
+      }
+      logger.info(`[WS] 按 URL 停止 [${target_url}]: ${slots.length} 个节点`);
+      sseBus.notifyAll();
+      break;
+    }
+
+    default:
+      break;
   }
 }
 

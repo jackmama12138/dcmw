@@ -6,7 +6,6 @@ const ChromePool = require('./chrome-pool');
 const GatewayClient = require('./ws-client');
 const { runTask } = require('./task-runner');
 const actionsLoader = require('./actions-loader');
-const { checkRanklist } = require('./ranklist-check');
 const logger = require('./logger');
 
 // ─── 环境变量校验 ─────────────────────────────────────────────────────────────
@@ -117,8 +116,7 @@ const client = new GatewayClient({
     }
   },
 
-  // 热重载动作代码或恢复内置动作
-  // 执行榜单检查
+  // 执行榜单检查（走 plugin ranklist-check action）
   async onRanklist({ profile, task_id }) {
     const slot = pool.slots.get(profile);
     if (!slot?.context) {
@@ -126,7 +124,7 @@ const client = new GatewayClient({
       return;
     }
     const ctrl = runningTasks.get(taskKey(task_id, profile)) ?? { profile, task_id };
-    await checkRanklist(slot.context, ctrl);
+    await actionsLoader.runStep(slot.context, { type: 'ranklist-check' }, ctrl);
   },
 
   // 执行截图
@@ -138,6 +136,17 @@ const client = new GatewayClient({
     }
     const ctrl = runningTasks.get(taskKey(task_id, profile)) ?? { profile, task_id };
     await actionsLoader.runStep(slot.context, { type: 'screenshot' }, ctrl);
+  },
+
+  async onAction({ profile, action, params }) {
+    const slot = pool.slots.get(profile);
+    if (!slot?.context) {
+      logger.warn(`[${profile}] run_action(${action}): 无活跃 context`);
+      return;
+    }
+    const ctrl = { profile, task_id: '' };
+    await actionsLoader.runStep(slot.context, { type: action, ...params }, ctrl);
+    logger.info(`[${profile}] run_action(${action}) 完成`);
   },
 
   // 提供当前所有运行中任务的状态，gateway 重启后心跳携带此信息恢复映射
@@ -195,6 +204,7 @@ async function handleTask(task) {
   const key = taskKey(task_id, profile);
   const ctrl = runTask(context, task, {
     pool,
+    onProgress: (data) => client.send(data),
     onComplete: async (result) => {
       runningTasks.delete(key);
       // 先 release 再上报：确保 slot 真正空闲后 gateway 才会重新调度

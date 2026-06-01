@@ -117,3 +117,13 @@ export async function triggerRanklistCheck({ worker_id, profile, task_id }) {
   const { data } = await http.post('/api/ranklist/check', { worker_id, profile, task_id });
   return data;
 }
+
+export async function triggerRanklistCheckBatch(targets) {
+  const { data } = await http.post('/api/ranklist/check', { targets });
+  return data;
+}
+
+export async function triggerReloadBatch(targets) {
+  const { data } = await http.post('/api/reload', { targets });
+  return data;
+}

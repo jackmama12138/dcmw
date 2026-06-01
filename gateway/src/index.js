@@ -12,6 +12,7 @@ const WorkerRegistry = require('./worker-registry');
 const Scheduler = require('./scheduler');
 const { createWsServer, cleanupWorker } = require('./ws-server');
 const { createRouter } = require('./router');
+const sseBus = require('./sse-bus');
 
 async function main() {
   // ─── infrastructure ───────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ async function main() {
 
   // ─── http + ws server ─────────────────────────────────────────────────────
   const server = http.createServer(app);
+  sseBus.init(registry, taskStore);
   createWsServer(server, { registry, taskStore, scheduler });
 
   server.listen(config.port, () => {

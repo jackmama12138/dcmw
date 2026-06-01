@@ -307,7 +307,7 @@ const _blockNewTabsScript = () => {
     .observe(document.documentElement, { childList: true, subtree: true });
 };
 
-async function navigate(context, { url, waitUntil = 'commit', blockNewTabs = false }) {
+async function navigate(context, { url, waitUntil = 'commit', blockNewTabs = false }, ctrl) {
   if (!url || typeof url !== 'string') {
     return { ok: false, reason: 'invalid_url', error: `无效的 url "${url}"` };
   }
@@ -320,12 +320,31 @@ async function navigate(context, { url, waitUntil = 'commit', blockNewTabs = fal
   }
 
   try {
-    await page.goto(url, { waitUntil: safeWait, timeout: 30_000 });
+    // 与 ctrl.stopped 竞争：stop 信号到达时中断等待中的 goto
+    let interval;
+    const onPageClose = () => {};
+    const stopPromise = new Promise((_, reject) => {
+      if (ctrl?.stopped) return reject(new Error('stopped'));
+      interval = setInterval(() => {
+        if (ctrl?.stopped) reject(new Error('stopped'));
+      }, 200);
+    });
+    const cleanup = () => {
+      clearInterval(interval);
+      page.off('close', onPageClose);
+    };
+
+    await Promise.race([
+      page.goto(url, { waitUntil: safeWait, timeout: 30_000 }).finally(cleanup),
+      stopPromise,
+    ]);
+
     if (blockNewTabs) {
       await page.evaluate(_blockNewTabsScript).catch(() => {});
     }
     return { ok: true, url };
   } catch (err) {
+    if (err.message === 'stopped') return { ok: false, reason: 'stopped' };
     logger.warn(`navigate: 导航失败 "${url}" — ${err.message}`);
     return { ok: false, reason: 'nav_failed', error: err.message };
   }
@@ -366,9 +385,34 @@ async function wait(_context, params, ctrl) {
 }
 
 // 停留动作：持续等待直到 ctrl.stopped 或达到 task_time 上限
-async function dwell(_context, _params, ctrl) {
+async function dwell(context, _params, ctrl) {
   const maxSec = Math.max(1, Number(process.env.DWELL_MAX_SECONDS) || 72000);
   const start  = Date.now();
+
+  // 启动真实鼠标随机滑动（30-90s 一次，isTrusted:true，绕过合成事件检测）
+  let mouseTimer = null;
+  const scheduleMouse = () => {
+    const delay = 30_000 + Math.floor(Math.random() * 60_001);
+    mouseTimer = setTimeout(async () => {
+      if (ctrl?.stopped) return;
+      try {
+        const page = context.pages()[0];
+        if (!page) return;
+        const vp = page.viewportSize() ?? { width: 1280, height: 800 };
+        // 随机起点 → 随机终点，steps 模拟人手移动轨迹
+        const x1 = 100 + Math.floor(Math.random() * (vp.width  - 200));
+        const y1 = 100 + Math.floor(Math.random() * (vp.height - 200));
+        const x2 = 100 + Math.floor(Math.random() * (vp.width  - 200));
+        const y2 = 100 + Math.floor(Math.random() * (vp.height - 200));
+        const steps = 10 + Math.floor(Math.random() * 16); // 10-25 步
+        await page.mouse.move(x1, y1, { steps: 5 });
+        await page.mouse.move(x2, y2, { steps });
+      } catch { /* 页面关闭时忽略 */ }
+      if (!ctrl?.stopped) scheduleMouse();
+    }, delay);
+  };
+  scheduleMouse();
+
   await new Promise(resolve => {
     const tick = () => {
       if (!ctrl || ctrl.stopped) return resolve();
@@ -378,6 +422,8 @@ async function dwell(_context, _params, ctrl) {
     };
     tick();
   });
+
+  clearTimeout(mouseTimer);
   return { ok: true };
 }
 

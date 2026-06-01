@@ -80,10 +80,15 @@ class ChromePool {
         executablePath: this.chromePath,
         headless: false,
         viewport: null,
+        ignoreDefaultArgs: ['--enable-automation'],
         args: [
           '--no-first-run',
           '--no-default-browser-check',
           '--test-type',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-background-timer-throttling',
+          '--disable-renderer-backgrounding',
+          '--disable-backgrounding-occluded-windows',
           '--disable-accelerated-video-decode',
           '--disable-gpu-rasterization',
           '--disable-gpu-compositing',
@@ -114,6 +119,28 @@ class ChromePool {
 
       slot.context = context;
       logger.info(`[${profileName}] Chrome 已启动`);
+
+      await context.addInitScript(() => {
+        // Playwright 通过 CDP 直接注入 webdriver，delete 无效，需要 defineProperty 覆盖
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => undefined,
+          configurable: true,
+        });
+
+        // 补全 window.chrome，真实 Chrome 有 runtime 等子对象
+        window.chrome = {
+          app: { isInstalled: false, InstallState: {}, RunningState: {} },
+          runtime: {
+            PlatformOs: { MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd' },
+            PlatformArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64' },
+            RequestUpdateCheckStatus: { THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available' },
+            OnInstalledReason: { INSTALL: 'install', UPDATE: 'update', CHROME_UPDATE: 'chrome_update', SHARED_MODULE_UPDATE: 'shared_module_update' },
+            OnRestartRequiredReason: { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' },
+          },
+          csi: () => {},
+          loadTimes: () => {},
+        };
+      });
 
       // 启动后把所有已打开页面导航到 about:blank：
       // 持久化 profile 会恢复上次的页面，统一清掉避免干扰任务执行

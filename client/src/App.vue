@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
 import Dashboard       from './components/Dashboard.vue';
 import TaskSubmit      from './components/TaskSubmit.vue';
 import TemplateManager from './components/TemplateManager.vue';
@@ -92,6 +92,10 @@ const TABS = [
 const activeTab     = ref('dashboard');
 const tasks         = ref([]);
 const workers       = ref([]);
+// Map<"workerId:profile", { step, total, action, elapsed_ms }> — 实时执行进度
+const progressMap   = ref({});
+// 最新截图通知列表（环形，最多保留 50 条）
+const screenshotNotifications = ref([]);
 const captureTaskId = ref('');
 
 const currentTab    = computed(() => TABS.find(t => t.id === activeTab.value));
@@ -133,28 +137,66 @@ async function doScreenshotTake(task) {
   activeTab.value = 'screenshots';
 }
 
-let es;
-onMounted(() => {
-  refresh(); // 先拉一次全量，保证页面初始数据完整
+let ws = null;
+let wsReconnectTimer = null;
 
-  const sseUrl = (import.meta.env.VITE_SERVER_PUBLISH_URL ?? '') + '/api/events';
-  es = new EventSource(sseUrl);
+function connectWs() {
+  const base = (import.meta.env.VITE_SERVER_PUBLISH_URL ?? '').replace(/^http/, 'ws');
+  ws = new WebSocket(`${base}/ws/client`);
 
-  es.onmessage = (e) => {
+  ws.onopen = () => {
+    // 连接后 gateway 会自动推全量快照，无需额外拉取
+  };
+
+  ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
-    if (msg.type === 'tasks' || msg.type === 'all') {
-      fetchTasks().then(v => { tasks.value = v; }).catch(() => {});
+    if (msg.type === 'workers_update') workers.value = msg.workers;
+    if (msg.type === 'worker_patch') {
+      const idx = workers.value.findIndex(w => w.workerId === msg.worker.workerId);
+      if (idx !== -1) workers.value[idx] = msg.worker;
+      else workers.value = [...workers.value, msg.worker];
     }
-    if (msg.type === 'workers' || msg.type === 'all') {
-      fetchWorkers().then(v => { workers.value = v; }).catch(() => {});
-    }
+    if (msg.type === 'tasks_update')   tasks.value   = msg.tasks;
+    if (msg.type === 'task_progress')  handleProgress(msg);
+    if (msg.type === 'screenshot_done') handleScreenshotDone(msg);
   };
 
-  // EventSource 内置指数退避重连，这里只在控制台记录断线事件
-  es.onerror = () => {
-    // 浏览器会自动重连；重连成功后 Gateway 推 initial 'all' 事件补全数据
+  ws.onclose = () => {
+    ws = null;
+    wsReconnectTimer = setTimeout(connectWs, 3000);
   };
+
+  ws.onerror = () => { ws?.close(); };
+}
+
+function wsSend(payload) {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+}
+
+function handleProgress(msg) {
+  const key = `${msg.worker_id}:${msg.profile}`;
+  progressMap.value = { ...progressMap.value, [key]: {
+    step: msg.step, total: msg.total, action: msg.action, elapsed_ms: msg.elapsed_ms,
+  }};
+}
+
+function handleScreenshotDone(msg) {
+  screenshotNotifications.value.unshift(msg);
+  if (screenshotNotifications.value.length > 50) screenshotNotifications.value.length = 50;
+}
+
+provide('wsSend', wsSend);
+provide('progressMap', progressMap);
+provide('screenshotNotifications', screenshotNotifications);
+
+onMounted(() => {
+  refresh(); // 初始全量拉取兜底（WS 未连接前保证有数据）
+  connectWs();
 });
-onUnmounted(() => { es?.close(); es = null; });
+onUnmounted(() => {
+  clearTimeout(wsReconnectTimer);
+  ws?.close();
+  ws = null;
+});
 </script>

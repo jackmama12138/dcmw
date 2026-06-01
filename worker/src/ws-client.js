@@ -7,7 +7,7 @@ const RECONNECT_BASE_MS = 3_000;
 const RECONNECT_MAX_MS = 30_000;
 
 class GatewayClient {
-  constructor({ serverUrl, workerId, pool, onTask, onStop, onUpdateTime, onRanklist, onScreenshot, getStatus }) {
+  constructor({ serverUrl, workerId, pool, onTask, onStop, onUpdateTime, onRanklist, onScreenshot, onAction, getStatus }) {
     if (!serverUrl) throw new Error('GatewayClient: serverUrl 是必填项');
     if (!workerId) throw new Error('GatewayClient: workerId 是必填项');
 
@@ -21,6 +21,7 @@ class GatewayClient {
     this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name);           this._sendSchemasUpdate(); };
     this.onRanklist      = onRanklist      ?? (() => {});
     this.onScreenshot    = onScreenshot    ?? (() => {});
+    this.onAction        = onAction        ?? (() => {});
     this.getStatus       = getStatus       ?? (() => ({})); // 返回当前所有运行中任务的状态
 
     this.ws = null;
@@ -226,6 +227,10 @@ class GatewayClient {
 
       case 'run_screenshot':
         this.onScreenshot(msg).catch(() => {});
+        break;
+
+      case 'run_action':
+        this.onAction(msg).catch(() => {});
         break;
 
       case 'ping':

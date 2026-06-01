@@ -31,7 +31,7 @@
         <div v-for="group in urlGroups" :key="group.url"
           style="display:flex; align-items:center; gap:8px; padding:6px 12px; border-bottom:1px solid var(--bd-color)"
           class="hover:bg-gray-50 transition-colors">
-          <div class="font-mono text-xs" style="width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; color:var(--primary)" :title="group.url">{{ extractDomain(group.url) }}</div>
+          <div class="font-mono text-xs" style="width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; color:var(--primary)" :title="group.url">{{ group.url }}</div>
           <span class="text-xs text-gray-400" style="width:24px; text-align:right; flex-shrink:0">{{ group.nodes.length }}</span>
           <div style="flex:1; min-width:0; display:flex; align-items:center; overflow:hidden; gap:4px">
             <template v-for="(nodes, wid) in groupByWorker(group.nodes)" :key="wid">
@@ -48,6 +48,12 @@
             <button v-for="d in timeAdjusts" :key="d.label" @click="adjust(group.url, d.val)"
               class="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
               style="font-size:10px; padding:1px 4px">{{ d.label }}</button>
+            <button @click="checkRanklist(group.nodes)"
+              class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors"
+              style="font-size:10px; padding:1px 6px; margin-left:4px">榜单</button>
+            <button @click="douyinReload(group.nodes)"
+              class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors"
+              style="font-size:10px; padding:1px 6px">刷新</button>
             <button @click="stopUrl(group.url)"
               class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
               style="font-size:10px; padding:1px 6px; margin-left:4px">停止</button>
@@ -59,61 +65,65 @@
       <div class="bg-white border border-gray-200 rounded-lg" style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
         <div v-if="!workers.length" class="text-xs text-gray-600 text-center py-4">无 Worker 连接</div>
         <div v-else style="flex:1; min-height:0; overflow-y:auto">
-          <table class="w-full text-xs" style="table-layout:fixed">
-            <colgroup>
-              <col style="width:28px" />
-              <col style="width:130px" />
-              <col style="width:158px" />
-              <col />
-              <col />
-              <col style="width:120px" />
-            </colgroup>
-            <thead style="position:sticky; top:0; z-index:10; background:var(--bg-card)">
-              <tr class="border-b border-gray-200 text-gray-600 text-left select-none">
-                <th class="pl-3 py-1.5 font-normal"></th>
-                <th class="px-2 py-1.5 font-normal">Worker</th>
-                <th class="px-2 py-1.5 font-normal">节点</th>
-                <th class="px-2 py-1.5 font-normal">标题</th>
-                <th class="px-2 py-1.5 font-normal">域名</th>
-                <th class="px-2 py-1.5 font-normal text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="w in workers" :key="w.workerId"
-                class="border-b border-gray-200 last:border-0 hover:bg-gray-50 transition-colors">
-                <td class="pl-3 py-1.5">
-                  <span :class="w.connected ? 'bg-emerald-500' : 'bg-red-500'" class="w-1.5 h-1.5 rounded-full block"></span>
-                </td>
-                <td class="px-2 py-1.5 font-mono" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--primary)">{{ w.workerId }}</td>
-                <td class="px-2 py-1.5">
-                  <div style="display:flex; gap:2px; flex-wrap:nowrap">
-                    <button v-for="p in w.profiles" :key="p.profileName"
-                      :title="`${p.profileName}｜${p.state}${p.currentTitle ? '｜' + p.currentTitle : ''}${p.currentUrl ? '\n' + p.currentUrl : ''}`"
-                      @click="p.state === 'busy' && stopNode(w.workerId, p.profileName)"
-                      :class="['rounded-sm flex-shrink-0 transition-colors',
-                        p.state==='busy'  ? 'bg-emerald-500 hover:bg-red-400 cursor-pointer' :
-                        p.state==='error' ? 'bg-red-400 cursor-default' : 'bg-gray-300 cursor-default']"
-                      style="width:18px; height:14px" />
-                  </div>
-                </td>
-                <td class="px-2 py-1.5" style="overflow:hidden">
-                  <div class="truncate text-gray-500" :title="workerTitleFull(w)">{{ workerTitleShort(w) }}</div>
-                </td>
-                <td class="px-2 py-1.5" style="overflow:hidden">
-                  <div class="truncate font-mono text-gray-500" style="font-size:11px" :title="workerDomainFull(w)">{{ workerDomains(w) }}</div>
-                </td>
-                <td class="px-2 py-1.5">
-                  <div style="display:flex; gap:4px; justify-content:flex-end">
-                    <button v-if="w.slots.busy > 0" @click="stopWorker(w.workerId)"
-                      class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
-                      style="width:36px; font-size:11px; padding:1px 0; text-align:center">停止</button>
-                    <span style="width:36px; display:inline-block"></span>
-                    <span style="width:36px; display:inline-block"></span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <template v-for="w in workers" :key="w.workerId">
+            <!-- Worker 标题行 -->
+            <div @click="toggleWorker(w.workerId)" style="display:flex; align-items:center; gap:6px; padding:4px 10px; background:var(--bg-page); border-bottom:1px solid var(--bd-color); position:sticky; top:0; z-index:10; cursor:pointer; user-select:none">
+              <span class="text-gray-400 flex-shrink-0" style="font-size:10px; width:10px">{{ collapsedWorkers.has(w.workerId) ? '▶' : '▼' }}</span>
+              <span :class="w.connected ? 'bg-emerald-500' : 'bg-red-500'" class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
+              <span class="font-mono text-xs font-medium" style="color:var(--primary)">{{ w.workerId }}</span>
+              <span class="text-xs text-gray-400">{{ w.slots.busy }}/{{ w.slots.total }} 运行</span>
+              <span style="flex:1"></span>
+              <button @click.stop="checkRanklist(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName})))"
+                class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors"
+                style="font-size:10px; padding:1px 6px">榜单</button>
+              <button @click.stop="douyinReload(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName})))"
+                class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors"
+                style="font-size:10px; padding:1px 6px">刷新所有节点</button>
+              <button v-if="w.slots.busy > 0" @click.stop="stopWorker(w.workerId)"
+                class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
+                style="font-size:10px; padding:1px 8px">停止全部</button>
+            </div>
+            <!-- 该 Worker 下各 Profile 行 -->
+            <div v-if="!collapsedWorkers.has(w.workerId)"
+              v-for="p in w.profiles" :key="p.profileName"
+              class="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
+              style="display:flex; align-items:center; gap:6px; padding:4px 10px 4px 24px">
+              <!-- 状态点 -->
+              <span :class="p.state==='busy' ? 'bg-emerald-500' : p.state==='error' ? 'bg-red-400' : 'bg-gray-300'"
+                class="w-1.5 h-1.5 rounded-full flex-shrink-0"></span>
+              <!-- Profile 名 -->
+              <span class="text-xs text-gray-500 font-mono flex-shrink-0" style="width:72px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" :title="p.profileName">{{ p.profileName }}</span>
+              <!-- rank 标签 -->
+              <span v-if="p.rank !== null"
+                :class="p.rank > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-red-50 border-red-200 text-red-500'"
+                class="border rounded flex-shrink-0 font-mono"
+                style="font-size:10px; padding:0 4px; min-width:28px; text-align:center">
+                {{ p.rank > 0 ? '#' + p.rank : '未上榜' }}
+              </span>
+              <span v-else class="text-gray-300 flex-shrink-0" style="font-size:10px; min-width:28px">—</span>
+              <!-- 页面标题 + 进度（单行） -->
+              <div class="flex-shrink-1" style="min-width:0; display:flex; align-items:center; gap:4px; overflow:hidden">
+                <span class="text-xs text-gray-400 truncate" :title="p.currentUrl ?? ''">{{ p.currentTitle || p.currentUrl || '' }}</span>
+                <template v-if="getProgress(w.workerId, p.profileName)">
+                  <span class="text-gray-300 flex-shrink-0" style="font-size:10px">·</span>
+                  <span class="text-gray-400 font-mono flex-shrink-0" style="font-size:10px">{{ getProgress(w.workerId, p.profileName).step }}/{{ getProgress(w.workerId, p.profileName).total }}</span>
+                  <span class="text-gray-400 flex-shrink-0" style="font-size:10px">{{ getProgress(w.workerId, p.profileName).action }}</span>
+                </template>
+              </div>
+              <!-- 操作 -->
+              <div style="display:flex; gap:3px; flex-shrink:0; margin-left:auto">
+                <button @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])"
+                  class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors"
+                  style="font-size:10px; padding:0 5px">榜单</button>
+                <button @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])"
+                  class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors"
+                  style="font-size:10px; padding:0 5px">刷新</button>
+                <button v-if="p.state === 'busy'" @click="stopNode(w.workerId, p.profileName)"
+                  class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors"
+                  style="font-size:10px; padding:0 5px">停止</button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -158,12 +168,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, inject } from 'vue';
 import {
-  stopByUrl, stopWorker as apiStopWorker, stopNode as apiStopNode,
   adjustTime, fetchSchedulerConfig, setSchedulerConfig,
   fetchTemplates, submitTask,
 } from '../api.js';
+
+const wsSend       = inject('wsSend', () => {});
+const progressMap  = inject('progressMap', ref({}));
 
 const props = defineProps({ workers: { type: Array, default: () => [] } });
 const emit  = defineEmits(['refresh']);
@@ -198,6 +210,13 @@ watch(form, v => {
 }, { deep: true });
 
 // ── 统计 ──────────────────────────────────────────────
+const collapsedWorkers = ref(new Set());
+function toggleWorker(id) {
+  const s = new Set(collapsedWorkers.value);
+  s.has(id) ? s.delete(id) : s.add(id);
+  collapsedWorkers.value = s;
+}
+
 const onlineWorkers = computed(() => props.workers.filter(w => w.connected).length);
 const busyNodes     = computed(() => props.workers.reduce((s, w) => s + w.slots.busy, 0));
 const idleNodes     = computed(() => props.workers.reduce((s, w) => s + w.slots.idle, 0));
@@ -223,31 +242,6 @@ function groupByWorker(nodes) {
 }
 
 // ── 辅助函数 ──────────────────────────────────────────
-function extractDomain(url) {
-  if (!url) return '';
-  try {
-    const parts = new URL(url).hostname.split('.');
-    return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
-  } catch { return url; }
-}
-
-function workerTitleShort(w) {
-  const titles = w.profiles.filter(p => p.state === 'busy' && p.currentTitle).map(p => p.currentTitle.slice(0, 2));
-  return [...new Set(titles)].join(',') || '';
-}
-
-function workerTitleFull(w) {
-  return w.profiles.filter(p => p.state === 'busy' && p.currentTitle).map(p => `${p.profileName}: ${p.currentTitle}`).join('\n');
-}
-
-function workerDomains(w) {
-  const domains = w.profiles.filter(p => p.state === 'busy' && (p.currentUrl || p.targetUrl)).map(p => extractDomain(p.currentUrl || p.targetUrl));
-  return [...new Set(domains)].join(',') || '';
-}
-
-function workerDomainFull(w) {
-  return w.profiles.filter(p => p.state === 'busy' && (p.currentUrl || p.targetUrl)).map(p => p.currentUrl || p.targetUrl).join('\n');
-}
 
 // ── 操作 ──────────────────────────────────────────────
 async function setMode(mode) {
@@ -256,16 +250,42 @@ async function setMode(mode) {
 async function adjust(url, delta) {
   try { await adjustTime(url, delta); emit('refresh'); } catch (err) { alert(err.message); }
 }
-async function stopUrl(url) {
+function stopUrl(url) {
   if (!confirm(`停止所有执行 "${url}" 的节点？`)) return;
-  try { await stopByUrl(url); emit('refresh'); } catch (err) { alert(err.message); }
+  wsSend({ type: 'stop_url', target_url: url });
 }
-async function stopWorker(workerId) {
+function getProgress(workerId, profileName) {
+  return progressMap.value[`${workerId}:${profileName}`] ?? null;
+}
+function progressPct(workerId, profileName) {
+  const p = getProgress(workerId, profileName);
+  if (!p || !p.total) return 0;
+  return Math.round((p.step / p.total) * 100);
+}
+
+function getProfileRank(workerId, profileName) {
+  return props.workers.find(w => w.workerId === workerId)
+    ?.profiles.find(p => p.profileName === profileName)?.rank ?? null;
+}
+
+function checkRanklist(nodes) {
+  // 已有排名（rank > 0）的节点跳过
+  const targets = nodes
+    .filter(n => (getProfileRank(n.workerId, n.profileName) ?? 0) <= 0)
+    .map(n => ({ worker_id: n.workerId, profile: n.profileName }));
+  if (targets.length) wsSend({ type: 'ranklist_check', targets });
+}
+function douyinReload(nodes) {
+  for (const n of nodes) {
+    wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
+  }
+}
+function stopWorker(workerId) {
   if (!confirm(`停止 Worker ${workerId} 上所有节点？`)) return;
-  try { await apiStopWorker(workerId); emit('refresh'); } catch (err) { alert(err.message); }
+  wsSend({ type: 'stop_worker', worker_id: workerId });
 }
-async function stopNode(workerId, profile) {
-  try { await apiStopNode(workerId, profile); emit('refresh'); } catch (err) { alert(err.message); }
+function stopNode(workerId, profile) {
+  wsSend({ type: 'stop_node', worker_id: workerId, profile });
 }
 
 async function submit() {
