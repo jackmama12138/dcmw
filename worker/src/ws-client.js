@@ -7,7 +7,7 @@ const RECONNECT_BASE_MS = 3_000;
 const RECONNECT_MAX_MS = 30_000;
 
 class GatewayClient {
-  constructor({ serverUrl, workerId, pool, onTask, onStop, onUpdateTime, onReloadActions, onRanklist, onScreenshot, getStatus }) {
+  constructor({ serverUrl, workerId, pool, onTask, onStop, onUpdateTime, onRanklist, onScreenshot, getStatus }) {
     if (!serverUrl) throw new Error('GatewayClient: serverUrl 是必填项');
     if (!workerId) throw new Error('GatewayClient: workerId 是必填项');
 
@@ -17,7 +17,6 @@ class GatewayClient {
     this.onTask = onTask;
     this.onStop = onStop ?? (() => {});
     this.onUpdateTime = onUpdateTime ?? (() => {});
-    this.onReloadActions  = onReloadActions  ?? (() => {});
     this.onLoadPlugin   = (msg) => { actionsLoader.loadPlugin(msg.name, msg.code);   this._register(); };
     this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name);           this._register(); };
     this.onRanklist      = onRanklist      ?? (() => {});
@@ -200,11 +199,6 @@ class GatewayClient {
       case 'update_task_time':
         logger.info(`收到 update_task_time: task=${msg.task_id} profile=${msg.profile} task_time=${msg.task_time}`);
         this.onUpdateTime(msg);
-        break;
-
-      case 'reload_actions':
-        logger.info('收到来自 gateway 的 reload_actions');
-        this.onReloadActions(msg);
         break;
 
       case 'load_plugin':

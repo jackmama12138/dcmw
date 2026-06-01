@@ -16,18 +16,10 @@ let _actionMap = {};
 
 // ─── 加载辅助 ─────────────────────────────────────────────────────────────────
 
-// 从模块导出中提取 actions 对象
-// 支持两种格式：
-//   { actions: { 'type': fn, ... } }  ← 新格式（推荐）
-//   { runStep: fn }                   ← 旧格式（兼容，整体替换 actionMap）
+// 从模块导出中提取 actions 对象，格式：{ actions: { 'type': fn, ... } }
 function _extractActions(mod, label) {
-  if (mod && typeof mod === 'object') {
-    if (mod.actions && typeof mod.actions === 'object') return mod.actions;
-    // 旧格式：整个模块作为单一 runStep，包装成 action map 结构
-    if (typeof mod.runStep === 'function') {
-      logger.warn(`${label}: 使用旧版 runStep 格式，建议迁移到 { actions: {} } 格式`);
-      return null; // 调用方识别 null 后走旧路径
-    }
+  if (mod && typeof mod === 'object' && mod.actions && typeof mod.actions === 'object') {
+    return mod.actions;
   }
   logger.warn(`${label}: 无法识别导出格式，已忽略`);
   return {};
@@ -42,12 +34,8 @@ function _requireFresh(filePath) {
 // 加载内置动作，返回 actions 对象
 function _loadBuiltin() {
   try {
-    const mod = _requireFresh(BUILTIN_PATH);
+    const mod     = _requireFresh(BUILTIN_PATH);
     const actions = _extractActions(mod, 'builtin');
-    if (actions === null) {
-      // 兼容旧格式：直接返回空对象，由 runStep 代理
-      return { _legacyModule: mod };
-    }
     logger.info(`builtin: 加载了 ${Object.keys(actions).length} 个动作`);
     return actions;
   } catch (err) {
@@ -95,15 +83,6 @@ function _rebuild() {
   const builtin = _loadBuiltin();
   const plugins = _loadPlugins();
 
-  // 旧格式兼容：builtin 模块是 legacyModule 时，不合并，整体代理
-  if (builtin._legacyModule) {
-    _legacyRunStep = builtin._legacyModule.runStep;
-    _actionMap  = {};
-    _schemaMap  = {};
-    return;
-  }
-
-  _legacyRunStep = null;
   _actionMap = { ...builtin, ...plugins };
 
   // 收集插件导出的 schemas（builtin 无 schema，只收插件）
@@ -122,9 +101,6 @@ function _rebuild() {
 
   logger.info(`actionMap 已重建：共 ${Object.keys(_actionMap).length} 个动作，${Object.keys(_schemaMap).length} 个插件 schema`);
 }
-
-// 兼容旧格式的 runStep 代理（正常情况下为 null）
-let _legacyRunStep = null;
 
 // ─── 插件热更新 API ───────────────────────────────────────────────────────────
 
@@ -169,21 +145,6 @@ function listActions() {
   return Object.keys(_actionMap);
 }
 
-// ─── 兼容旧版热更新（Actions 编辑器）─────────────────────────────────────────
-// 保留 reload / resetToBuiltin，内部映射到 loadPlugin/unloadPlugin
-
-const LEGACY_PLUGIN_NAME = '_override';
-
-function reload(code) {
-  if (!code) { resetToBuiltin(); return; }
-  loadPlugin(LEGACY_PLUGIN_NAME, code);
-}
-
-function resetToBuiltin() {
-  unloadPlugin(LEGACY_PLUGIN_NAME);
-  logger.info('actions: 已恢复内置动作');
-}
-
 // ─── 核心分发 ─────────────────────────────────────────────────────────────────
 
 function runStep(context, step, ctrl) {
@@ -192,9 +153,6 @@ function runStep(context, step, ctrl) {
   }
   const { type, ...params } = step;
   if (!type) throw new Error('runStep: 步骤缺少 "type" 字段');
-
-  // 旧格式兼容路径
-  if (_legacyRunStep) return _legacyRunStep(context, step, ctrl);
 
   const fn = _actionMap[type];
   if (!fn) throw new Error(`runStep: 未知的动作类型 "${type}"`);
@@ -207,4 +165,4 @@ _rebuild();
 // 返回所有插件的 schema 定义（供 Worker 上报给 gateway）
 function getSchemas() { return { ..._schemaMap }; }
 
-module.exports = { runStep, reload, resetToBuiltin, loadPlugin, unloadPlugin, listActions, getSchemas };
+module.exports = { runStep, loadPlugin, unloadPlugin, listActions, getSchemas };

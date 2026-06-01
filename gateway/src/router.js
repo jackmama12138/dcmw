@@ -285,51 +285,6 @@ function createRouter({ taskStore, registry, scheduler }) {
     catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // ─── 动作代码分发 ─────────────────────────────────────────────────────────
-
-  // 获取当前自定义动作代码
-  router.get('/api/actions', async (_req, res) => {
-    try {
-      const code = await taskStore.getActionsCode();
-      res.json({ code, has_custom: code !== null });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // 删除自定义代码，所有 Worker 恢复内置动作
-  router.delete('/api/actions', async (_req, res) => {
-    try {
-      await taskStore.setActionsCode(null);
-      registry.broadcast({ type: 'reload_actions', code: null });
-      logger.info(`动作已重置为内置 — 已广播到 ${registry.workers.size} 个 Worker`);
-      return res.json({ ok: true, notified: registry.workers.size });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  });
-
-  // 上传新的自定义动作代码，语法校验通过后广播到所有 Worker
-  // 正在执行任务的 Worker 完成当前步骤后才使用新代码
-  router.post('/api/actions', async (req, res) => {
-    const { code } = req.body ?? {};
-    if (!code || typeof code !== 'string') {
-      return res.status(400).json({ error: 'code（字符串）是必填项' });
-    }
-
-    // 存储前先做语法检查，避免将破损代码推送给 Worker
-    try {
-      new vm.Script(code);
-    } catch (err) {
-      return res.status(400).json({ error: `语法错误: ${err.message}` });
-    }
-
-    await taskStore.setActionsCode(code);
-    registry.broadcast({ type: 'reload_actions', code });
-
-    logger.info(`动作代码已更新 — 已广播到 ${registry.workers.size} 个 Worker`);
-    return res.json({ ok: true, notified: registry.workers.size });
-  });
 
   // ─── 调度器配置 ───────────────────────────────────────────────────────────
 

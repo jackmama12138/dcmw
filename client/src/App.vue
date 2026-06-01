@@ -61,7 +61,6 @@
         <ScreenshotViewer v-if="activeTab === 'screenshots'" />
         <CaptureViewer   v-if="activeTab === 'captures'"  :initial-task-id="captureTaskId" />
         <RanklistViewer  v-if="activeTab === 'ranklist'" />
-        <ActionsEditor   v-if="activeTab === 'actions'" />
       </main>
     </div>
   </div>
@@ -77,7 +76,6 @@ import CookieViewer    from './components/CookieViewer.vue';
 import ScreenshotViewer from './components/ScreenshotViewer.vue';
 import CaptureViewer   from './components/CaptureViewer.vue';
 import RanklistViewer  from './components/RanklistViewer.vue';
-import ActionsEditor   from './components/ActionsEditor.vue';
 import { fetchTasks, fetchWorkers, stopTask as apiStop, triggerRanklistCheck, triggerScreenshot } from './api.js';
 
 const TABS = [
@@ -89,7 +87,6 @@ const TABS = [
   { id: 'screenshots', label: '截图',      icon: '▣', desc: 'screenshot 截图记录' },
   { id: 'captures',    label: '拦截数据',  icon: '◎', desc: 'intercept 响应数据' },
   { id: 'ranklist',    label: '榜单检查',  icon: '◉', desc: '直播间榜单检查记录' },
-  { id: 'actions',     label: 'Actions',  icon: '⌥', desc: '自定义 Worker 脚本' },
 ];
 
 const activeTab     = ref('dashboard');

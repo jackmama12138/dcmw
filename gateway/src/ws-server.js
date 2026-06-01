@@ -144,13 +144,6 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       registry.register(workerId, ws, profiles, msg.schemas ?? {});
       logger.info(`[${workerId}] 已注册 — Profile 列表: [${profiles.join(', ')}]`);
 
-      // 向新连接的 Worker 推送最新自定义动作代码，保证代码同步
-      const actionsCode = await taskStore.getActionsCode();
-      if (actionsCode) {
-        registry.sendTo(workerId, { type: 'reload_actions', code: actionsCode });
-        logger.info(`[${workerId}] 已推送当前动作代码`);
-      }
-
       // 推送 gateway plugins/ 目录下所有插件
       for (const { name, code } of readPlugins()) {
         registry.sendTo(workerId, { type: 'load_plugin', name, code });

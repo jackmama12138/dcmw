@@ -118,14 +118,6 @@ const client = new GatewayClient({
   },
 
   // 热重载动作代码或恢复内置动作
-  onReloadActions({ code }) {
-    if (code) {
-      actionsLoader.reload(code);
-    } else {
-      actionsLoader.resetToBuiltin();
-    }
-  },
-
   // 执行榜单检查
   async onRanklist({ profile, task_id }) {
     const slot = pool.slots.get(profile);

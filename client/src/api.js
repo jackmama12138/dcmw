@@ -82,23 +82,6 @@ export async function setSchedulerConfig(dispatch_mode) {
   return data;
 }
 
-// ─── actions code ─────────────────────────────────────────────────────────────
-
-export async function fetchActionsCode() {
-  const { data } = await http.get('/api/actions');
-  return data;
-}
-
-export async function saveActionsCode(code) {
-  const { data } = await http.post('/api/actions', { code });
-  return data;
-}
-
-export async function resetActionsCode() {
-  const { data } = await http.delete('/api/actions');
-  return data;
-}
-
 // ─── cookies ──────────────────────────────────────────────────────────────────
 
 export async function fetchCookies(signal) {
