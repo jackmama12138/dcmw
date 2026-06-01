@@ -48,7 +48,7 @@ module.exports = {
         user_info  : parse(data.user_info),
       };
 
-      reporter.reportCapture(ctrl, { pattern: 'douyin-storage', data: result });
+      reporter.reportCapture(ctrl, { pattern: 'douyin-storage', matchedUrl: url, body: result });
       return { ok: true, ...result };
     },
   },
