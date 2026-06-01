@@ -1,7 +1,24 @@
 const WebSocket = require('ws');
 const { URL } = require('url');
+const fs   = require('fs');
+const path = require('path');
 const logger = require('./logger');
 const sseBus = require('./sse-bus');
+
+const PLUGINS_DIR = process.env.GATEWAY_PLUGINS_DIR
+  ? path.resolve(process.env.GATEWAY_PLUGINS_DIR)
+  : path.resolve(__dirname, '../plugins');
+
+// 读取插件目录，返回 [{ name, code }]
+function readPlugins() {
+  if (!fs.existsSync(PLUGINS_DIR)) return [];
+  return fs.readdirSync(PLUGINS_DIR)
+    .filter(f => f.endsWith('.js'))
+    .map(f => ({
+      name: f.replace(/\.js$/, ''),
+      code: fs.readFileSync(path.join(PLUGINS_DIR, f), 'utf8'),
+    }));
+}
 
 // 创建 WebSocket 服务器并挂载到已有的 HTTP 服务器上
 function createWsServer(httpServer, { registry, taskStore, scheduler }) {
@@ -52,6 +69,31 @@ function createWsServer(httpServer, { registry, taskStore, scheduler }) {
       logger.error(`[${workerId}] WebSocket 错误: ${err.message}`);
     });
   });
+
+  // 监听 plugins/ 目录，文件新增或修改时广播给所有在线 Worker
+  if (fs.existsSync(PLUGINS_DIR)) {
+    let debounce = null;
+    fs.watch(PLUGINS_DIR, (event, filename) => {
+      if (!filename || !filename.endsWith('.js')) return;
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        const name     = filename.replace(/\.js$/, '');
+        const filePath = path.join(PLUGINS_DIR, filename);
+        if (!fs.existsSync(filePath)) {
+          registry.broadcast({ type: 'unload_plugin', name });
+          logger.info(`plugins 目录: ${filename} 已删除，广播卸载`);
+        } else {
+          const code = fs.readFileSync(filePath, 'utf8');
+          registry.broadcast({ type: 'load_plugin', name, code });
+          logger.info(`plugins 目录: ${filename} 变更，广播热更新`);
+        }
+      }, 300);
+    });
+    logger.info(`监听插件目录: ${PLUGINS_DIR}`);
+  } else {
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    logger.info(`已创建插件目录: ${PLUGINS_DIR}`);
+  }
 
   return wss;
 }
@@ -107,6 +149,12 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       if (actionsCode) {
         registry.sendTo(workerId, { type: 'reload_actions', code: actionsCode });
         logger.info(`[${workerId}] 已推送当前动作代码`);
+      }
+
+      // 推送 gateway plugins/ 目录下所有插件
+      for (const { name, code } of readPlugins()) {
+        registry.sendTo(workerId, { type: 'load_plugin', name, code });
+        logger.info(`[${workerId}] 已推送插件: ${name}`);
       }
 
       sseBus.notifyWorkers();
