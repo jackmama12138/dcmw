@@ -252,7 +252,7 @@ const STEP_DEFS = {
   // ─── 反检测 / 媒体 ──────────────────────────────────────────────────────────
   antidetect: {
     label: '防检测 & 静音', badge: 'bg-teal-50 text-teal-600',
-    desc: '注入可见性欺骗脚本 + 人类活动模拟，视频自动静音',
+    desc: '注入可见性欺骗脚本 + 人类活动模拟，视频自动静音，拦截新标签页（window.open / target=_blank）',
     fields: [] },
   'pause-video': {
     label: '暂停视频', badge: 'bg-teal-50 text-teal-600',
