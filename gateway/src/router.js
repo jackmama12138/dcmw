@@ -531,28 +531,6 @@ function createRouter({ taskStore, registry, scheduler }) {
     res.json(registry.getSchemas());
   });
 
-  // 热更新插件：广播给所有 Worker 加载
-  router.post('/api/plugin', (req, res) => {
-    const { name, code } = req.body ?? {};
-    if (!name || typeof name !== 'string' || !/^[\w-]+$/.test(name)) {
-      return res.status(400).json({ error: '无效的插件名' });
-    }
-    if (!code || typeof code !== 'string') {
-      return res.status(400).json({ error: '缺少 code 字段' });
-    }
-    registry.broadcast({ type: 'load_plugin', name, code });
-    res.json({ ok: true, name });
-  });
-
-  // 卸载插件：广播给所有 Worker 移除
-  router.delete('/api/plugin/:name', (req, res) => {
-    const { name } = req.params;
-    if (!name || !/^[\w-]+$/.test(name)) {
-      return res.status(400).json({ error: '无效的插件名' });
-    }
-    registry.broadcast({ type: 'unload_plugin', name });
-    res.json({ ok: true, name });
-  });
 
   router.get('/api/workers', (_req, res) => {
     res.json(registry.summary());
