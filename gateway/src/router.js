@@ -413,7 +413,7 @@ function createRouter({ taskStore, registry, scheduler }) {
         .sort()
         .reverse();
       const meta = await taskStore.getScreenshotsMeta(files);
-      const list = files.map(f => {
+      const raw = files.map(f => {
         const m = meta[f] ?? {};
         const stat = fs.statSync(path.join(SCREENSHOTS_DIR, f));
         const ts = m.timestamp ?? stat.mtimeMs;
@@ -424,7 +424,13 @@ function createRouter({ taskStore, registry, scheduler }) {
           url      : `/data/screenshots/${f}?t=${ts}`,
         };
       });
-      return res.json(list);
+      // 同一 worker+profile 只保留最新一张
+      const dedup = new Map();
+      for (const s of raw) {
+        const key = `${s.worker_id}:${s.profile}`;
+        if (!dedup.has(key) || s.timestamp > dedup.get(key).timestamp) dedup.set(key, s);
+      }
+      return res.json([...dedup.values()]);
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
