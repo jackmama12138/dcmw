@@ -45,11 +45,6 @@ class TaskStoreSQLite {
         filename TEXT PRIMARY KEY,
         data     TEXT NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS ranklist (
-        key       TEXT    PRIMARY KEY,
-        data      TEXT    NOT NULL,
-        timestamp INTEGER NOT NULL
-      );
     `);
   }
 
@@ -264,20 +259,6 @@ class TaskStoreSQLite {
       try { out[row.filename] = JSON.parse(row.data); } catch {}
     }
     return out;
-  }
-
-  // ─── ranklist ─────────────────────────────────────────────────────────────
-
-  async addRanklist(data) {
-    const key = `${data.worker_id}:${data.profile}`;
-    this.db.prepare(
-      'INSERT INTO ranklist (key, data, timestamp) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data, timestamp = excluded.timestamp'
-    ).run(key, JSON.stringify(data), data.timestamp || Date.now());
-  }
-
-  async getAllRanklist() {
-    const rows = this.db.prepare('SELECT data FROM ranklist ORDER BY timestamp DESC').all();
-    return rows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
   }
 
   // ─── queries ──────────────────────────────────────────────────────────────

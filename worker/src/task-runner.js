@@ -1,22 +1,6 @@
 const actionsLoader = require('./actions-loader');
 const logger = require('./logger');
 
-const CENTER_NOTIFY_URL = process.env.CENTER_NOTIFY_URL;
-
-// 向中心服务器发送任务完成通知
-async function httpNotify(profile, status, targetUrl, taskId) {
-  if (!CENTER_NOTIFY_URL) return;
-  try {
-    await fetch(CENTER_NOTIFY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ node_name: profile, status, target_url: targetUrl, task_id: taskId }),
-      signal: AbortSignal.timeout(5000),
-    });
-  } catch (err) {
-    logger.warn(`httpNotify 失败: ${err.message}`);
-  }
-}
 
 /**
  * 在指定 BrowserContext 中执行任务的 pipeline。
@@ -101,7 +85,6 @@ async function _execute(context, task, { onComplete, onProgress, ctrl, cleanup }
       try { await fn(); } catch {}
     }
     cleanup?.();
-    await httpNotify(result.profile, result.status, result.target_url, result.task_id);
     await onComplete(result);
   }
 

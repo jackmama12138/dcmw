@@ -287,21 +287,6 @@ class TaskStore {
     return out;
   }
 
-  // ─── ranklist（按 worker_id:profile 去重覆盖）────────────────────────────
-
-  async addRanklist(data) {
-    const key = `${data.worker_id}:${data.profile}`;
-    await this.redis.hset('ranklist:map', key, JSON.stringify(data));
-    await this.redis.zadd('ranklist:index', data.timestamp || Date.now(), key);
-  }
-
-  async getAllRanklist() {
-    const keys = await this.redis.zrevrange('ranklist:index', 0, -1);
-    if (!keys.length) return [];
-    const vals = await this.redis.hmget('ranklist:map', ...keys);
-    return vals.map(v => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
-  }
-
   // ─── queries ──────────────────────────────────────────────────────────────
 
   async getDispatchable() {

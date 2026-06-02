@@ -307,16 +307,6 @@ function createRouter({ taskStore, registry, scheduler }) {
     }
   });
 
-  // ─── Worker 任务完成通知 ─────────────────────────────────────────────────
-  // POST /notify { node_name, status, target_url, task_id? }
-  router.post('/notify', (req, res) => {
-    const { node_name, status, target_url, task_id } = req.body ?? {};
-    if (!node_name || !status) {
-      return res.status(400).json({ error: 'node_name 和 status 是必填项' });
-    }
-    logger.info(`/notify 节点=${node_name} 状态=${status} 任务=${task_id ?? '?'} url=${target_url ?? '?'}`);
-    return res.json({ ok: true });
-  });
 
   // 接收 Worker 上报的 Cookie 数据并存储
   router.post('/api/cookies', async (req, res) => {
