@@ -288,6 +288,15 @@ class TaskStoreSQLite {
     }
   }
 
+  // 将 Redis 里的已完成任务写入 SQLite（upsert，幂等）
+  archiveTask(task) {
+    const taskId = String(task.task_id);
+    this.db.prepare(
+      'INSERT INTO tasks (task_id, data, status, created_at, updated_at, is_active) VALUES (?, ?, ?, ?, ?, 0) ' +
+      'ON CONFLICT(task_id) DO UPDATE SET data = excluded.data, status = excluded.status, updated_at = excluded.updated_at, is_active = 0'
+    ).run(taskId, JSON.stringify(task), task.status ?? 'done', task.created_at ?? Date.now(), Date.now());
+  }
+
   async pruneCompleted(maxAgeSec = 86400) {
     const cutoff = Date.now() - maxAgeSec * 1000;
     const result = this.db.prepare("DELETE FROM tasks WHERE status = 'done' AND created_at < ?").run(cutoff);

@@ -25,7 +25,7 @@ function readPlugins() {
 }
 
 // 创建 WebSocket 服务器并挂载到已有的 HTTP 服务器上
-function createWsServer(httpServer, { registry, taskStore, scheduler }) {
+function createWsServer(httpServer, { registry, taskStore, sqliteStore, scheduler }) {
   const wss = new WebSocket.Server({ noServer: true });
 
   // 前端 WebSocket 服务器（/ws/client）
@@ -79,7 +79,7 @@ function createWsServer(httpServer, { registry, taskStore, scheduler }) {
         logger.warn(`[${workerId}] 收到非 JSON 消息`);
         return;
       }
-      handleMessage(workerId, ws, msg, { registry, taskStore, scheduler })
+      handleMessage(workerId, ws, msg, { registry, taskStore, sqliteStore, scheduler })
         .catch(err => logger.error(`[${workerId}] 消息处理错误: ${err.message}`));
     });
 
@@ -174,7 +174,7 @@ async function cleanupWorker(workerId, ws, { registry, taskStore, scheduler }) {
 }
 
 // 处理来自 Worker 的各类 WebSocket 消息
-async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler }) {
+async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteStore, scheduler }) {
   if (!msg || typeof msg.type !== 'string') {
     logger.warn(`[${workerId}] 消息格式错误`);
     return;
@@ -253,6 +253,10 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       logger.info(
         `[${workerId}:${profile}] 任务 ${task_id} ${status} — ${task.completed + task.failed}/${task.count} 已完成`
       );
+
+      if (task.status === 'done') {
+        sqliteStore.archiveTask(task);
+      }
 
       sseBus.notifyAll();
       scheduler.dispatch();
@@ -338,7 +342,10 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
       const w = registry.workers.get(worker_id);
       const slot = w?.profiles.get(profile);
       if (!slot || slot.state !== 'busy') break;
-      if (slot.taskId) await taskStore.atomicForceComplete(String(slot.taskId));
+      if (slot.taskId) {
+        const done = await taskStore.atomicForceComplete(String(slot.taskId));
+        if (done) sqliteStore.archiveTask(done);
+      }
       registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
       registry.markIdle(worker_id, profile);
       // 打停止时间戳，60s 内阻止心跳把 idle 改回 busy
@@ -355,7 +362,8 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
       if (!worker_id) break;
       const busySlots = registry.getBusySlots(worker_id);
       const taskIds = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
-      await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+      const done1 = await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+      done1.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
       const _now1 = Date.now();
       for (const { profileName, taskId } of busySlots) {
         registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
@@ -374,7 +382,8 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
       if (!target_url) break;
       const slots = registry.getSlotsByUrl(target_url);
       const taskIds = [...new Set(slots.map(s => s.taskId).filter(Boolean))];
-      await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
+      const done2 = await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
+      done2.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
       const _now2 = Date.now();
       for (const { workerId, profileName, taskId } of slots) {
         registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });

@@ -54,7 +54,7 @@ async function main() {
   // ─── http + ws server ─────────────────────────────────────────────────────
   const server = http.createServer(app);
   sseBus.init(registry, taskStore);
-  createWsServer(server, { registry, taskStore, scheduler });
+  createWsServer(server, { registry, taskStore, sqliteStore, scheduler });
 
   server.listen(config.port, () => {
     logger.info(`Gateway listening on port ${config.port}`);

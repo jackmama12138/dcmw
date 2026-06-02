@@ -143,7 +143,8 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     }
     const busySlots = registry.getBusySlots(worker_id);
     const taskIds = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
-    await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+    const rA = await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
+    rA.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
     for (const { profileName, taskId } of busySlots) {
       registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
       registry.markIdle(worker_id, profileName); // 立即释放，允许接受下一个任务
@@ -162,7 +163,8 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     if (!slot) return res.status(404).json({ error: 'Profile 不存在' });
     if (slot.state !== 'busy') return res.status(400).json({ error: '节点当前不忙' });
     if (slot.taskId) {
-      await taskStore.atomicForceComplete(String(slot.taskId));
+      const rB = await taskStore.atomicForceComplete(String(slot.taskId));
+      if (rB) sqliteStore.archiveTask(rB);
     }
     registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
     registry.markIdle(worker_id, profile); // 立即释放
@@ -198,6 +200,7 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     const taskId = req.params.id;
     const task = await taskStore.atomicForceComplete(taskId);
     if (!task) return res.status(404).json({ error: '任务不存在' });
+    sqliteStore.archiveTask(task);
 
     const allBusy = registry.getSlotsByTaskId(taskId);
     for (const { workerId, profileName } of allBusy) {
@@ -216,7 +219,8 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
 
     const slots = registry.getSlotsByUrl(target_url);
     const taskIds = [...new Set(slots.map(s => s.taskId).filter(Boolean))];
-    await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
+    const rC = await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
+    rC.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
 
     for (const { workerId, profileName, taskId } of slots) {
       registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
@@ -507,21 +511,30 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     res.json(registry.summary());
   });
 
-  // 获取最近 100 条任务记录
+  // 获取最近 100 条任务记录（活跃任务来自 Redis，历史任务来自 SQLite，合并去重）
   router.get('/api/tasks', async (_req, res) => {
     try {
-      const tasks = await taskStore.getAll(100);
-      res.json(tasks);
+      const [active, history] = await Promise.all([
+        taskStore.getAll(100),
+        sqliteStore.getAll(100),
+      ]);
+      const seen = new Set();
+      const merged = [];
+      for (const t of [...active, ...history]) {
+        if (!seen.has(t.task_id)) { seen.add(t.task_id); merged.push(t); }
+      }
+      merged.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+      res.json(merged.slice(0, 100));
     } catch (err) {
       logger.error(`/api/tasks 错误: ${err.message}`);
       res.status(500).json({ error: '内部错误' });
     }
   });
 
-  // 获取指定任务详情
+  // 获取指定任务详情（先查 Redis 活跃，没有再查 SQLite 历史）
   router.get('/api/tasks/:id', async (req, res) => {
     try {
-      const task = await taskStore.get(req.params.id);
+      const task = await taskStore.get(req.params.id) ?? await sqliteStore.get(req.params.id);
       if (!task) return res.status(404).json({ error: '任务不存在' });
       res.json(task);
     } catch (err) {
