@@ -2,17 +2,15 @@
   <div class="pe">
     <draggable v-model="localSteps" item-key="_id" handle=".drag-handle" ghost-class="pe__ghost" animation="150">
       <template #item="{ element, index }">
-        <div class="pe__step">
+        <div class="pe__step" :style="{ borderLeft: '3px solid ' + stepAccent(element.type) }">
           <div class="drag-handle pe__handle">⠿</div>
           <div class="pe__index">{{ index + 1 }}</div>
 
-          <a-tag :color="badgeColor(element.type)" :title="stepDef(element.type).desc ?? ''" class="pe__tag">
-            {{ stepDef(element.type).label }}
-          </a-tag>
           <a-select
             :model-value="element.type"
             size="small"
             class="pe__type-select"
+            :title="stepDef(element.type).desc ?? ''"
             @change="val => changeType(index, val)">
             <a-option v-for="(def, key) in STEP_DEFS" :key="key" :value="key">{{ def.label }}</a-option>
           </a-select>
@@ -298,15 +296,15 @@ function stepDef(type) {
   return STEP_DEFS[type] ?? { label: type, badge: 'bg-gray-100 text-gray-600', fields: [] };
 }
 
-// 将原 Tailwind badge 类映射为 Arco a-tag 颜色
-const HUE_TO_ARCO = {
-  blue: 'blue', orange: 'orange', yellow: 'gold', green: 'green', gray: 'gray',
-  purple: 'purple', indigo: 'arcoblue', pink: 'pinkpurple', cyan: 'cyan',
-  red: 'red', sky: 'arcoblue', teal: 'cyan',
+// 按步骤类别取强调色（左侧色条），颜色编码便于快速扫描
+const HUE_TO_HEX = {
+  blue: '#165dff', orange: '#ff7d00', yellow: '#f7ba1e', green: '#00b42a', gray: '#c9cdd4',
+  purple: '#722ed1', indigo: '#3491fa', pink: '#d91ad9', cyan: '#14c9c9',
+  red: '#f53f3f', sky: '#3491fa', teal: '#0fc6c2',
 };
-function badgeColor(type) {
+function stepAccent(type) {
   const m = (stepDef(type).badge || '').match(/text-(\w+)-/);
-  return HUE_TO_ARCO[m?.[1]] ?? 'gray';
+  return HUE_TO_HEX[m?.[1]] ?? '#c9cdd4';
 }
 
 function addStep() {
@@ -366,7 +364,6 @@ function updateField(idx, key, value) {
 .pe__handle:active { cursor: grabbing; }
 
 .pe__index { font-size: var(--fs-xs); color: var(--tx-4); width: 16px; text-align: right; flex-shrink: 0; }
-.pe__tag { flex-shrink: 0; margin: 0; }
 /* .pe__type-select 宽度见 style.css 全局（scoped 属性匹配不到 Arco 组件根）*/
 
 /* 字段区：占满剩余宽度，单行不换行，溢出可横向滚动（不裁切纵向）*/
