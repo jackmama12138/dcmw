@@ -12,6 +12,9 @@
     <template #extra>
       <a-space :size="8">
         <a-button size="small" @click="copyAll">复制 JSON</a-button>
+        <a-popconfirm content="确认清空全部 Cookie？此操作不可恢复" type="warning" @ok="doClearAll">
+          <a-button size="small" status="danger" :disabled="!deduped.length">清空</a-button>
+        </a-popconfirm>
         <a-button type="primary" size="small" :loading="loading" @click="loadAll">
           {{ loading ? '加载中…' : '刷新全部' }}
         </a-button>
@@ -61,8 +64,13 @@
         <a-table-column title="时间" :width="170">
           <template #cell="{ record }"><span class="cell-muted">{{ formatTime(record.timestamp) }}</span></template>
         </a-table-column>
-        <a-table-column title="操作" :width="70" align="right">
-          <template #cell="{ record }"><a-button type="text" size="mini" @click="copyItem(record)">复制</a-button></template>
+        <a-table-column title="操作" :width="110" align="right">
+          <template #cell="{ record }">
+            <a-button type="text" size="mini" @click="copyItem(record)">复制</a-button>
+            <a-popconfirm content="确认删除该条 Cookie？" type="warning" @ok="doDelete(record)">
+              <a-button type="text" size="mini" status="danger">删除</a-button>
+            </a-popconfirm>
+          </template>
         </a-table-column>
       </template>
     </a-table>
@@ -77,7 +85,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { fetchCookies } from '../api.js';
+import { Message } from '@arco-design/web-vue';
+import { fetchCookies, deleteCookie, clearCookies } from '../api.js';
 
 const props = defineProps({ initialTaskId: { type: String, default: '' } });
 
@@ -134,6 +143,27 @@ async function loadAll() {
     if (!signal.aborted) allItems.value = [];
   } finally {
     if (!signal.aborted) loading.value = false;
+  }
+}
+
+async function doDelete(c) {
+  const uid = c.user_unique_id || `_nuid_${c.profile}`;
+  try {
+    await deleteCookie(uid);
+    allItems.value = allItems.value.filter(x => x !== c && (x.user_unique_id || `_nuid_${x.profile}`) !== uid);
+    Message.success('已删除');
+  } catch (err) {
+    Message.error(err.response?.data?.error ?? err.message);
+  }
+}
+
+async function doClearAll() {
+  try {
+    const { removed } = await clearCookies();
+    allItems.value = [];
+    Message.success(`已清空 ${removed ?? 0} 条`);
+  } catch (err) {
+    Message.error(err.response?.data?.error ?? err.message);
   }
 }
 

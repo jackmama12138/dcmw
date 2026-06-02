@@ -233,6 +233,14 @@ class TaskStoreSQLite {
     return rows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
   }
 
+  async deleteCookie(uid) {
+    return this.db.prepare('DELETE FROM cookies WHERE uid = ?').run(uid).changes;
+  }
+
+  async clearCookies() {
+    return this.db.prepare('DELETE FROM cookies').run().changes;
+  }
+
   // ─── captures ─────────────────────────────────────────────────────────────
 
   async addCapture(taskId, data) {
@@ -264,6 +272,10 @@ class TaskStoreSQLite {
       try { out[row.filename] = JSON.parse(row.data); } catch {}
     }
     return out;
+  }
+
+  async deleteScreenshotMeta(filename) {
+    return this.db.prepare('DELETE FROM screenshots_meta WHERE filename = ?').run(filename).changes;
   }
 
   // ─── queries ──────────────────────────────────────────────────────────────

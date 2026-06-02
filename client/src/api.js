@@ -91,8 +91,23 @@ export async function fetchCookies(signal) {
   return data;
 }
 
+export async function deleteCookie(uid) {
+  const { data } = await http.delete(`/api/cookies/${encodeURIComponent(uid)}`);
+  return data;
+}
+
+export async function clearCookies() {
+  const { data } = await http.delete('/api/cookies');
+  return data;
+}
+
 export async function fetchScreenshots(signal) {
   const { data } = await http.get('/api/screenshots', { signal });
+  return data;
+}
+
+export async function deleteScreenshot(filename) {
+  const { data } = await http.delete(`/api/screenshots/${encodeURIComponent(filename)}`);
   return data;
 }
 

@@ -369,6 +369,28 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     }
   });
 
+  // 清空所有 Cookie
+  router.delete('/api/cookies', async (_req, res) => {
+    try {
+      const removed = await sqliteStore.clearCookies();
+      logger.info(`已清空 Cookie：${removed} 条`);
+      return res.json({ ok: true, removed });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 删除单条 Cookie（按 uid，即 user_unique_id）
+  router.delete('/api/cookies/:uid', async (req, res) => {
+    try {
+      const removed = await sqliteStore.deleteCookie(req.params.uid);
+      logger.info(`删除 Cookie uid=${req.params.uid}：${removed} 条`);
+      return res.json({ ok: true, removed });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── 截图管理 ─────────────────────────────────────────────────────────────
 
   // 接收 Worker 上报的 JPEG 截图（二进制上传，按 Profile 限量保存）
@@ -427,6 +449,7 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
           worker_id: m.worker_id ?? '',
           profile  : m.profile   ?? f.replace('.jpg', ''),
           timestamp: ts,
+          filename : f,
           url      : `/data/screenshots/${f}?t=${ts}`,
         };
       });
@@ -437,6 +460,22 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
         if (!dedup.has(key) || s.timestamp > dedup.get(key).timestamp) dedup.set(key, s);
       }
       return res.json([...dedup.values()]);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 删除单张截图（删除文件 + 元数据）
+  router.delete('/api/screenshots/:filename', async (req, res) => {
+    const filename = safeName(req.params.filename.replace(/\.jpg$/i, '')) + '.jpg';
+    if (!filename || filename === '.jpg') {
+      return res.status(400).json({ error: '非法文件名' });
+    }
+    try {
+      try { fs.unlinkSync(path.join(SCREENSHOTS_DIR, filename)); } catch {}
+      await sqliteStore.deleteScreenshotMeta(filename);
+      logger.info(`删除截图: ${filename}`);
+      return res.json({ ok: true });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
