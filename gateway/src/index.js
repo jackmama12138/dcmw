@@ -125,7 +125,7 @@ async function main() {
   });
 
   process.on('unhandledRejection', (reason) => {
-    logger.error(`Unhandled rejection: ${reason}`);
+    logger.error(`Unhandled rejection: ${reason}${reason?.stack ? '\n' + reason.stack : ''}`);
   });
 }
 

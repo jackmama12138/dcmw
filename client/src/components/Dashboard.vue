@@ -54,13 +54,13 @@
               <span class="text-xs text-gray-400 flex-shrink-0 bg-gray-100 border border-gray-200 rounded font-mono" style="padding:0 5px; line-height:18px">{{ w.slots.busy }}/{{ w.slots.total }}</span>
               <span style="flex:1"></span>
               <div style="display:flex; gap:4px; flex-shrink:0">
-                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&p.currentAction==='dwell'); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} checkRanklist(dw.map(p=>({workerId:w.workerId,profileName:p.profileName,rank:p.rank,nickname:p.nickname,isLoggedIn:p.isLoggedIn}))) }"
+                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&(getProgress(w.workerId,p.profileName)?.action??p.currentAction)==='dwell'); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} checkRanklist(dw.map(p=>({workerId:w.workerId,profileName:p.profileName,rank:p.rank,nickname:p.nickname,isLoggedIn:p.isLoggedIn}))) }"
                   class="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors" style="padding:1px 7px">获取榜单</button>
                 <button @click.stop="stopUnloggedWorker(w)"
                   class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:1px 7px">停未登陆</button>
                 <button @click.stop="stopUnrankedWorker(w)"
                   class="text-xs bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-500 rounded transition-colors" style="padding:1px 7px">停未上榜</button>
-                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&p.currentAction==='dwell'&&p.isLoggedIn&&(p.rank===null||p.rank<=0)); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} douyinReload(dw.map(p=>({workerId:w.workerId,profileName:p.profileName}))) }"
+                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&(getProgress(w.workerId,p.profileName)?.action??p.currentAction)==='dwell'&&p.isLoggedIn&&(p.rank===null||p.rank<=0)); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} douyinReload(dw.map(p=>({workerId:w.workerId,profileName:p.profileName}))) }"
                   class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:1px 7px">刷新未上榜</button>
                 <button @click.stop="stopWorker(w.workerId)"
                   class="text-xs bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-500 rounded transition-colors" style="padding:1px 7px">全停</button>

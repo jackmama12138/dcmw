@@ -55,12 +55,13 @@
 </template>
 
 <script setup>
-import { computed, inject } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { adjustTime, triggerScreenshot } from '../api.js';
 
-const props  = defineProps({ workers: { type: Array, default: () => [] } });
-const wsSend = inject('wsSend', () => {});
-const toast  = inject('toast', () => {});
+const props       = defineProps({ workers: { type: Array, default: () => [] } });
+const wsSend      = inject('wsSend', () => {});
+const toast       = inject('toast', () => {});
+const progressMap = inject('progressMap', ref({}));
 
 const urlGroups = computed(() => {
   const map = new Map();
@@ -70,7 +71,8 @@ const urlGroups = computed(() => {
         if (!map.has(p.targetUrl)) map.set(p.targetUrl, []);
         map.get(p.targetUrl).push({
           workerId: w.workerId, profileName: p.profileName,
-          isLoggedIn: p.isLoggedIn, rank: p.rank, taskId: p.taskId, currentAction: p.currentAction,
+          isLoggedIn: p.isLoggedIn, rank: p.rank, taskId: p.taskId,
+          currentAction: progressMap.value[`${w.workerId}:${p.profileName}`]?.action ?? p.currentAction,
         });
       }
     }

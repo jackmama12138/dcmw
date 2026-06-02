@@ -51,15 +51,17 @@
 
       <div v-for="c in paged" :key="c.user_unique_id || c._key"
         class="flex items-center gap-3 px-5 py-2 border-b border-gray-200 last:border-0 hover:bg-gray-50/80 transition-colors min-w-0">
-        <span class="font-mono text-emerald-600 text-xs font-medium flex-shrink-0 max-w-[140px] truncate"
-          :title="c.user_unique_id">{{ c.user_unique_id || '—' }}</span>
+        <span class="font-mono text-gray-400 text-xs flex-shrink-0 max-w-[100px] truncate"
+          :title="c.worker_id">{{ c.worker_id || '—' }}</span>
         <span class="font-mono text-blue-600 text-xs flex-shrink-0">{{ c.profile }}</span>
-        <span v-if="c.device_id" class="text-amber-600 font-mono text-xs flex-shrink-0 max-w-[100px] truncate"
-          :title="c.device_id">{{ c.device_id }}</span>
+        <span class="font-mono text-emerald-600 text-xs font-medium flex-shrink-0 max-w-[160px] truncate"
+          :title="c.user_unique_id">{{ c.user_unique_id || '—' }}</span>
+        <span class="font-mono text-gray-400 text-xs truncate w-32 flex-shrink-0"
+          :title="c.ua">{{ c.ua || '—' }}</span>
         <span class="font-mono text-gray-500 text-xs truncate flex-1 select-all min-w-0"
-          :title="c.cookie">{{ c.cookie }}</span>
+          :title="c.cookie">{{ c.cookie || '—' }}</span>
         <span class="text-gray-700 text-xs flex-shrink-0 whitespace-nowrap">{{ formatTime(c.timestamp) }}</span>
-        <button @click="copyCookie(c.cookie)"
+        <button @click="copyItem(c)"
           class="text-gray-600 hover:text-gray-800 transition-colors flex-shrink-0 text-xs">复制</button>
       </div>
 
@@ -153,7 +155,17 @@ async function loadAll() {
   }
 }
 
-function copyCookie(text) { navigator.clipboard.writeText(text || '').catch(() => {}); }
+function copyItem(c) {
+  const payload = JSON.stringify({
+    device_id: c.user_unique_id ?? '',
+    headers: {
+      cookie: c.cookie ?? '',
+      'user-agent': c.ua ?? '',
+    },
+    params: {},
+  }, null, 2);
+  navigator.clipboard.writeText(payload).catch(() => {});
+}
 function copyAll() {
   const text = JSON.stringify(filtered.value.map(({ _key, ...rest }) => rest), null, 2);
   navigator.clipboard.writeText(text).catch(() => {});

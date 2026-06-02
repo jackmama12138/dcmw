@@ -34,14 +34,20 @@ module.exports = {
       const url    = req.url();
       const device = new URL(url).searchParams.get('user_unique_id') ?? '';
       const ua     = req.headers()['user-agent'] ?? '';
-      const cookie = req.headers()['cookie'] ?? '';
 
       if (!device) {
         logger.warn(`[${profile}] douyin-im-cookie: user_unique_id 为空`);
         return { ok: false, reason: 'no_device' };
       }
+      logger.info(`[${profile}] douyin-im-cookie: device=${device} ua=${ua} cookie=${req.headers()['cookie']}`);
+      // cookie 无法从请求头获取（Chromium CDP 安全限制），从 context 直接读
+      const allCookies = await context.cookies();
+      const cookie = allCookies
+        .filter(c => c.domain.includes('douyin.com'))
+        .map(c => `${c.name}=${c.value}`)
+        .join('; ');
 
-      logger.info(`[${profile}] douyin-im-cookie: device=${device}`);
+      logger.info(`[${profile}] douyin-im-cookie: device=${device} cookies=${allCookies.filter(c => c.domain.includes('douyin.com')).length}个`);
       reporter.reportCookie(ctrl, { device, ua, cookie });
 
       return { ok: true, device };

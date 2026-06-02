@@ -315,12 +315,15 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
   // 接收 Worker 上报的 Cookie 数据并存储
   router.post('/api/cookies', async (req, res) => {
     const { task_id, profile, cookie } = req.body ?? {};
-    if (!profile || !cookie) {
-      return res.status(400).json({ error: 'profile 和 cookie 是必填项' });
+    if (!profile) {
+      return res.status(400).json({ error: 'profile 是必填项' });
+    }
+    if (!cookie) {
+      logger.warn(`/api/cookies: cookie 为空，仍存储 profile=${profile} uid=${req.body.user_unique_id ?? '—'}`);
     }
     try {
       await sqliteStore.addCookie(String(task_id ?? ''), req.body);
-      logger.info(`Cookie 已收集 profile=${profile} uid=${req.body.user_unique_id ?? '—'}`);
+      logger.info(`Cookie 已收集 profile=${profile} uid=${req.body.user_unique_id ?? '—'} cookie=${cookie ? '有' : '空'}`);
       return res.json({ ok: true });
     } catch (err) {
       logger.error(`/api/cookies 错误: ${err.message}`);

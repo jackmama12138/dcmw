@@ -49,12 +49,12 @@ function createWsServer(httpServer, { registry, taskStore, sqliteStore, schedule
     logger.info(`前端 WS 已连接，当前客户端数: ${clientBus.size}`);
 
     // 连接后立即推送全量快照
-    handleClientMessage(ws, { type: 'subscribe' }, { registry, taskStore });
+    handleClientMessage(ws, { type: 'subscribe' }, { registry, taskStore, sqliteStore });
 
     ws.on('message', (data) => {
       let msg;
       try { msg = JSON.parse(data); } catch { return; }
-      handleClientMessage(ws, msg, { registry, taskStore });
+      handleClientMessage(ws, msg, { registry, taskStore, sqliteStore });
     });
   });
 
@@ -300,7 +300,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteSto
 }
 
 // 处理前端 WS 消息
-async function handleClientMessage(ws, msg, { registry, taskStore }) {
+async function handleClientMessage(ws, msg, { registry, taskStore, sqliteStore }) {
   switch (msg.type) {
     case 'subscribe': {
       // 推送全量快照
@@ -336,19 +336,13 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
     }
 
     case 'stop_node': {
-      // { worker_id, profile }
       const { worker_id, profile } = msg;
       if (!worker_id || !profile) break;
       const w = registry.workers.get(worker_id);
       const slot = w?.profiles.get(profile);
       if (!slot || slot.state !== 'busy') break;
-      if (slot.taskId) {
-        const done = await taskStore.atomicForceComplete(String(slot.taskId));
-        if (done) sqliteStore.archiveTask(done);
-      }
       registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
       registry.markIdle(worker_id, profile);
-      // 打停止时间戳，60s 内阻止心跳把 idle 改回 busy
       const _stoppedSlot = registry.workers.get(worker_id)?.profiles.get(profile);
       if (_stoppedSlot) _stoppedSlot.stoppedAt = Date.now();
       logger.info(`[WS] 停止节点 → ${worker_id}:${profile}`);
@@ -357,13 +351,9 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
     }
 
     case 'stop_worker': {
-      // { worker_id }
       const { worker_id } = msg;
       if (!worker_id) break;
       const busySlots = registry.getBusySlots(worker_id);
-      const taskIds = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
-      const done1 = await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(String(id))));
-      done1.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
       const _now1 = Date.now();
       for (const { profileName, taskId } of busySlots) {
         registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
@@ -377,13 +367,9 @@ async function handleClientMessage(ws, msg, { registry, taskStore }) {
     }
 
     case 'stop_url': {
-      // { target_url }
       const { target_url } = msg;
       if (!target_url) break;
       const slots = registry.getSlotsByUrl(target_url);
-      const taskIds = [...new Set(slots.map(s => s.taskId).filter(Boolean))];
-      const done2 = await Promise.all(taskIds.map(id => taskStore.atomicForceComplete(id)));
-      done2.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
       const _now2 = Date.now();
       for (const { workerId, profileName, taskId } of slots) {
         registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
