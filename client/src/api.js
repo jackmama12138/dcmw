@@ -108,6 +108,11 @@ export async function fetchCaptures(taskId) {
   return data;
 }
 
+export async function fetchAllCaptures() {
+  const { data } = await http.get('/api/captures');
+  return data;
+}
+
 // ─── ranklist ─────────────────────────────────────────────────────────────────
 
 export async function fetchRanklist(signal) {

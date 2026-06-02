@@ -67,7 +67,7 @@
 
 <script setup>
 import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue';
-import { fetchCaptures, fetchTasks } from '../api.js';
+import { fetchAllCaptures } from '../api.js';
 
 const props = defineProps({ initialTaskId: { type: String, default: '' } });
 
@@ -99,12 +99,8 @@ async function loadAll() {
   loading.value = true;
   expanded.clear();
   try {
-    const tasks = await fetchTasks().catch(() => []);
-    if (signal.aborted) return;
-    const results = await Promise.all(
-      tasks.map(t => fetchCaptures(t.task_id).then(rows => rows.map(r => ({ ...r, task_id: r.task_id ?? t.task_id }))).catch(() => []))
-    );
-    if (!signal.aborted) allItems.value = results.flat().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    const rows = await fetchAllCaptures().catch(() => []);
+    if (!signal.aborted) allItems.value = rows.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   } finally {
     if (!signal.aborted) loading.value = false;
   }

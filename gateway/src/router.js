@@ -338,6 +338,15 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     return res.json({ ok: true });
   });
 
+  // 获取全部捕获数据（最新 500 条）
+  router.get('/api/captures', async (_req, res) => {
+    try {
+      return res.json(await sqliteStore.getAllCaptures(500));
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // 获取指定任务的所有捕获数据
   router.get('/api/captures/:task_id', async (req, res) => {
     try {

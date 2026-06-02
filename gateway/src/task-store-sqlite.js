@@ -244,6 +244,11 @@ class TaskStoreSQLite {
     return rows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
   }
 
+  async getAllCaptures(limit = 500) {
+    const rows = this.db.prepare('SELECT data FROM captures ORDER BY created_at DESC LIMIT ?').all(limit);
+    return rows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
+  }
+
   // ─── screenshots meta ─────────────────────────────────────────────────────
 
   async addScreenshotMeta(filename, data) {
