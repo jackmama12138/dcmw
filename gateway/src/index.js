@@ -7,7 +7,8 @@ const cors = require('cors');
 const config = require('./config');
 const logger = require('./logger');
 const { createRedisClient } = require('./redis');
-const TaskStore = require('./task-store');
+const TaskStore       = require('./task-store');
+const TaskStoreSQLite = require('./task-store-sqlite');
 const WorkerRegistry = require('./worker-registry');
 const Scheduler = require('./scheduler');
 const { createWsServer, cleanupWorker } = require('./ws-server');
@@ -16,19 +17,22 @@ const sseBus = require('./sse-bus');
 
 async function main() {
   // ─── infrastructure ───────────────────────────────────────────────────────
-  const backend = (process.env.STORAGE_BACKEND || 'redis').toLowerCase();
-  let redis = null;
-  let taskStore;
+  // SQLite 始终初始化（持久化存储）
+  const sqliteStore = new TaskStoreSQLite();
+  logger.info('存储后端: SQLite 已初始化');
 
-  if (backend === 'sqlite') {
-    logger.info('存储后端: SQLite');
-    taskStore = new TaskStore();
-  } else {
-    logger.info('存储后端: Redis');
-    redis = createRedisClient(config.redis);
+  // Redis 始终初始化（热数据存储），失败直接退出
+  const redis = createRedisClient(config.redis);
+  try {
     await redis.connect();
-    taskStore = new TaskStore(redis);
+    logger.info('存储后端: Redis 已连接');
+  } catch (err) {
+    logger.error(`Redis 连接失败，退出: ${err.message}`);
+    process.exit(1);
   }
+
+  // 当前业务逻辑仍走 Redis store，后续步骤逐步迁移
+  const taskStore = new TaskStore(redis);
   const registry = new WorkerRegistry();
   const scheduler = new Scheduler({ taskStore, registry });
 
@@ -45,7 +49,7 @@ async function main() {
   app.use(express.static(path.resolve(__dirname, '../public')));
   // Serve screenshot files directly so the frontend can load them via <img src>
   app.use('/data/screenshots', express.static(path.resolve(__dirname, '../data/screenshots')));
-  app.use(createRouter({ taskStore, registry, scheduler }));
+  app.use(createRouter({ taskStore, sqliteStore, registry, scheduler }));
 
   // ─── http + ws server ─────────────────────────────────────────────────────
   const server = http.createServer(app);

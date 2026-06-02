@@ -37,8 +37,8 @@ const captureQueue  = require('./capture-queue');
 const clientBus     = require('./client-bus');
 
 // 创建并返回 Express Router，注册所有 API 路由
-function createRouter({ taskStore, registry, scheduler }) {
-  captureQueue.init(taskStore);
+function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
+  captureQueue.init(sqliteStore);
   const router = Router();
 
   // 返回合法 pipeline 动作类型列表，前端用于构建编辑器选项
@@ -78,7 +78,7 @@ function createRouter({ taskStore, registry, scheduler }) {
     // 解析命名模板，获取 pipeline 和默认 task_time
     // pipeline 中的 navigate 步骤可用 "{target_url}" 作占位符
     if (templateName) {
-      const tpl = await taskStore.getTemplate(templateName);
+      const tpl = await sqliteStore.getTemplate(templateName);
       if (!tpl) return res.status(404).json({ error: `模板 "${templateName}" 不存在` });
       if (!pipeline) {
         pipeline = tpl.pipeline.map(step =>
@@ -264,7 +264,7 @@ function createRouter({ taskStore, registry, scheduler }) {
 
   // 获取所有模板列表
   router.get('/api/templates', async (_req, res) => {
-    try { res.json(await taskStore.getAllTemplates()); }
+    try { res.json(await sqliteStore.getAllTemplates()); }
     catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -277,14 +277,14 @@ function createRouter({ taskStore, registry, scheduler }) {
       return res.status(400).json({ error: pipelineError });
     }
     try {
-      const tpl = await taskStore.setTemplate(name, { description, pipeline, task_time });
+      const tpl = await sqliteStore.setTemplate(name, { description, pipeline, task_time });
       res.json({ ok: true, template: tpl });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
   // 删除指定模板
   router.delete('/api/templates/:name', async (req, res) => {
-    try { await taskStore.deleteTemplate(req.params.name); res.json({ ok: true }); }
+    try { await sqliteStore.deleteTemplate(req.params.name); res.json({ ok: true }); }
     catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -315,7 +315,7 @@ function createRouter({ taskStore, registry, scheduler }) {
       return res.status(400).json({ error: 'profile 和 cookie 是必填项' });
     }
     try {
-      await taskStore.addCookie(String(task_id ?? ''), req.body);
+      await sqliteStore.addCookie(String(task_id ?? ''), req.body);
       logger.info(`Cookie 已收集 profile=${profile} uid=${req.body.user_unique_id ?? '—'}`);
       return res.json({ ok: true });
     } catch (err) {
@@ -337,7 +337,7 @@ function createRouter({ taskStore, registry, scheduler }) {
   // 获取指定任务的所有捕获数据
   router.get('/api/captures/:task_id', async (req, res) => {
     try {
-      const captures = await taskStore.getCaptures(req.params.task_id);
+      const captures = await sqliteStore.getCaptures(req.params.task_id);
       return res.json(captures);
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -347,7 +347,7 @@ function createRouter({ taskStore, registry, scheduler }) {
   // 获取全局 Cookie 列表（按 user_unique_id 去重，最新覆盖）
   router.get('/api/cookies', async (_req, res) => {
     try {
-      return res.json(await taskStore.getAllCookies());
+      return res.json(await sqliteStore.getAllCookies());
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -379,7 +379,7 @@ function createRouter({ taskStore, registry, scheduler }) {
       return res.status(500).json({ error: '内部错误' });
     }
 
-    await taskStore.addScreenshotMeta(filename, { worker_id: workerId, profile, timestamp: ts });
+    await sqliteStore.addScreenshotMeta(filename, { worker_id: workerId, profile, timestamp: ts });
     logger.info(`截图已保存: ${filename} Worker=${workerId}`);
 
     // 实时通知前端有新截图
@@ -402,7 +402,7 @@ function createRouter({ taskStore, registry, scheduler }) {
         .filter(f => f.endsWith('.jpg'))
         .sort()
         .reverse();
-      const meta = await taskStore.getScreenshotsMeta(files);
+      const meta = await sqliteStore.getScreenshotsMeta(files);
       const raw = files.map(f => {
         const m = meta[f] ?? {};
         const stat = fs.statSync(path.join(SCREENSHOTS_DIR, f));

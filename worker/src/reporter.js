@@ -44,4 +44,24 @@ function reportScreenshot(ctrl, buffer) {
   return true;
 }
 
-module.exports = { reportCapture, reportScreenshot };
+// 上报 Cookie/设备信息到 gateway /api/cookies（按 device 去重覆盖）
+function reportCookie(ctrl, { device, ua, cookie }) {
+  const base = gatewayBase();
+  if (!base) return;
+  fetch(`${base}/api/cookies`, {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({
+      user_unique_id: device,
+      profile       : ctrl?.profile ?? '',
+      task_id       : ctrl?.task_id ?? '',
+      worker_id     : process.env.WORKER_ID ?? '',
+      ua,
+      cookie,
+      timestamp     : Date.now(),
+    }),
+    signal: AbortSignal.timeout(5000),
+  }).catch(err => logger.warn(`reportCookie 上报失败: ${err.message}`));
+}
+
+module.exports = { reportCapture, reportScreenshot, reportCookie };
