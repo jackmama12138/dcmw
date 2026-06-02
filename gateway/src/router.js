@@ -476,32 +476,6 @@ function createRouter({ taskStore, registry, scheduler }) {
   // ─── 榜单管理 ─────────────────────────────────────────────────────────────
 
   // 接收 Worker 上报的榜单检查结果
-  router.post('/api/ranklist', async (req, res) => {
-    const { profile, worker_id, rank, nickname, is_logged_in } = req.body ?? {};
-    if (!profile || !worker_id) {
-      return res.status(400).json({ error: 'profile 和 worker_id 是必填项' });
-    }
-    try {
-      await taskStore.addRanklist(req.body);
-      if (typeof rank === 'number') {
-        registry.updateRank(worker_id, profile, rank, nickname, is_logged_in);
-        sseBus.notifyWorkerPatch(worker_id);
-      }
-      return res.json({ ok: true });
-    } catch (err) {
-      logger.error(`/api/ranklist POST 错误: ${err.message}`);
-      return res.status(500).json({ error: '内部错误' });
-    }
-  });
-
-  // 获取全部榜单记录（供前端展示）
-  router.get('/api/ranklist', async (_req, res) => {
-    try {
-      return res.json(await taskStore.getAllRanklist());
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  });
 
   // 触发榜单检查（支持单个或批量）
   // 单个：{ worker_id, profile, task_id }

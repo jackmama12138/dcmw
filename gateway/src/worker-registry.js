@@ -57,8 +57,9 @@ class WorkerRegistry {
 
       // 只对 busy 的 slot 更新页面信息，避免关闭过渡期心跳把 idle slot 的 currentUrl 重新写成脏值
       if (slot.state === 'busy') {
-        if (info.url   !== undefined) slot.currentUrl   = info.url   || null;
-        if (info.title !== undefined) slot.currentTitle = info.title || null;
+        if (info.url            !== undefined) slot.currentUrl     = info.url   || null;
+        if (info.title          !== undefined) slot.currentTitle   = info.title || null;
+        if (info.current_action !== undefined) slot.currentAction  = info.current_action || null;
       }
 
       // gateway 重启后 slot 被初始化为 idle，但 worker 仍在执行任务
@@ -199,9 +200,9 @@ class WorkerRegistry {
     const stats = { idle: 0, busy: 0, total: profiles.size };
     const slotList = [];
     for (const [profileName, s] of profiles) {
-      const { state, taskId, targetUrl, currentUrl, currentTitle, rank, nickname, isLoggedIn } = s;
+      const { state, taskId, targetUrl, currentUrl, currentTitle, currentAction, rank, nickname, isLoggedIn } = s;
       stats[state] = (stats[state] ?? 0) + 1;
-      slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null, rank: rank ?? null, nickname: nickname ?? null, isLoggedIn: isLoggedIn ?? null });
+      slotList.push({ profileName, state, taskId, targetUrl, currentUrl: currentUrl ?? null, currentTitle: currentTitle ?? null, currentAction: currentAction ?? null, rank: rank ?? null, nickname: nickname ?? null, isLoggedIn: isLoggedIn ?? null });
     }
     return { workerId, slots: stats, profiles: slotList, lastHeartbeat, connected: ws.readyState === WebSocket.OPEN };
   }

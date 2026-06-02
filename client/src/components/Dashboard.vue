@@ -54,7 +54,7 @@
               <span class="text-xs text-gray-400 flex-shrink-0 bg-gray-100 border border-gray-200 rounded font-mono" style="padding:0 5px; line-height:18px">{{ w.slots.busy }}/{{ w.slots.total }}</span>
               <span style="flex:1"></span>
               <div style="display:flex; gap:4px; flex-shrink:0">
-                <button @click.stop="checkRanklist(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName,rank:p.rank,nickname:p.nickname,isLoggedIn:p.isLoggedIn})))"
+                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&p.currentAction==='dwell'); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} checkRanklist(dw.map(p=>({workerId:w.workerId,profileName:p.profileName,rank:p.rank,nickname:p.nickname,isLoggedIn:p.isLoggedIn}))) }"
                   class="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors" style="padding:1px 7px">获取榜单</button>
                 <button @click.stop="stopUnloggedWorker(w)"
                   class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:1px 7px">停未登陆</button>
@@ -70,7 +70,7 @@
             <template v-if="!collapsedWorkers.has(w.workerId)">
               <div v-for="p in w.profiles" :key="p.profileName"
                 class="hover:bg-gray-50 transition-colors"
-                style="display:grid; grid-template-columns:16px 16px 90px 52px 1fr 56px 1fr minmax(210px,auto); align-items:center; padding:4px 10px; border-bottom:1px solid var(--bd-color); min-height:36px">
+                style="display:grid; grid-template-columns:16px 16px 90px 52px 1fr 56px 1fr minmax(210px,auto); align-items:center; padding:5px 10px; border-bottom:1px solid var(--bd-color)">
                 <!-- 状态点 -->
                 <span style="padding-left:4px">
                   <span :class="p.state==='busy' ? 'bg-emerald-500' : p.state==='error' ? 'bg-red-400' : 'bg-gray-300'"
@@ -111,7 +111,9 @@
                 <!-- 操作 -->
                 <div style="display:flex; justify-content:flex-end; gap:3px">
                   <button @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])"
-                    class="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-500 rounded transition-colors" style="padding:0 5px">榜单</button>
+                    :disabled="p.currentAction !== 'dwell'"
+                    :class="p.currentAction === 'dwell' ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-500' : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'"
+                    class="text-xs border rounded transition-colors" style="padding:0 5px">榜单</button>
                   <button @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])"
                     class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:0 5px">刷新</button>
                   <button v-if="p.state === 'busy'" @click="takeScreenshot(w.workerId, p.profileName, p.taskId)"

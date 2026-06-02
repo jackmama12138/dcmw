@@ -124,7 +124,16 @@ const client = new GatewayClient({
       return;
     }
     const ctrl = runningTasks.get(taskKey(task_id, profile)) ?? { profile, task_id };
-    await actionsLoader.runStep(slot.context, { type: 'ranklist-check' }, ctrl);
+    const result = await actionsLoader.runStep(slot.context, { type: 'ranklist-check' }, ctrl);
+    if (result?.ok) {
+      client.send({
+        type       : 'ranklist_result',
+        profile,
+        rank       : result.rank,
+        nickname   : result.nickname ?? '',
+        is_logged_in: result.is_logged_in ?? false,
+      });
+    }
   },
 
   // 执行截图
@@ -157,9 +166,10 @@ const client = new GatewayClient({
       const colonIdx = key.indexOf(':');
       const profile  = key.slice(colonIdx + 1);
       result[profile] = {
-        state     : 'busy',
-        task_id   : ctrl.task_id,
-        target_url: ctrl.target_url ?? '',
+        state         : 'busy',
+        task_id       : ctrl.task_id,
+        target_url    : ctrl.target_url ?? '',
+        current_action: ctrl.currentAction ?? '',
       };
     }
     return result;

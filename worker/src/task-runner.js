@@ -118,6 +118,7 @@ async function _execute(context, task, { onComplete, onProgress, ctrl, cleanup }
     for (let i = 0; i < pipeline.length; i++) {
       if (settled || ctrl.stopped) break;
       const step = pipeline[i];
+      ctrl.currentAction = step?.type ?? '';
       logger.info(`${tag} 执行步骤 ${i + 1}/${pipeline.length}: ${step?.type}`);
 
       onProgress?.({

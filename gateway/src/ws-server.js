@@ -216,6 +216,15 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
       registry.updateSchemas(workerId, msg.schemas ?? {});
       break;
 
+    case 'ranklist_result': {
+      const { profile, rank, nickname, is_logged_in } = msg;
+      if (profile && typeof rank === 'number') {
+        registry.updateRank(workerId, profile, rank, nickname ?? '', is_logged_in ?? false);
+        sseBus.notifyWorkerPatch(workerId);
+      }
+      break;
+    }
+
     case 'heartbeat':
       registry.updateHeartbeat(workerId, msg.profiles ?? {});
       sseBus.notifyWorkerPatch(workerId);

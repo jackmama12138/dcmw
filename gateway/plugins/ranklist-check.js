@@ -58,17 +58,7 @@ module.exports = {
 
       logger.info(`[${profile}] ranklist: 排名=${payload.rank} 昵称=${payload.nickname || '—'}`);
 
-      const base = (process.env.CENTER_NOTIFY_URL ?? '').replace(/\/notify$/, '');
-      if (base) {
-        fetch(`${base}/api/ranklist`, {
-          method : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body   : JSON.stringify(payload),
-          signal : AbortSignal.timeout(5_000),
-        }).catch(() => {});
-      }
-
-      return { ok: true, rank: payload.rank };
+      return { ok: true, rank: payload.rank, nickname: payload.nickname, is_logged_in: payload.is_logged_in };
     },
   },
 };
