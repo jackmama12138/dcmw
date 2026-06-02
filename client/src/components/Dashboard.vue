@@ -70,7 +70,7 @@
                 </a-col>
                 <!-- 登录态 -->
                 <a-col flex="52px">
-                  <a-tag v-if="p.isLoggedIn === false" size="small" color="red">未登录</a-tag>
+                  <a-tag v-if="p.isLoggedIn === false" size="small" color="orange">未登录</a-tag>
                   <a-tag v-else-if="p.isLoggedIn === true" size="small" color="green">已登录</a-tag>
                   <span v-else class="t-placeholder">—</span>
                 </a-col>
@@ -80,7 +80,7 @@
                 </a-col>
                 <!-- 排名 -->
                 <a-col flex="56px" class="db__center">
-                  <a-tag v-if="p.rank !== null" size="small" :color="p.rank > 0 ? 'green' : 'orange'" class="mono">
+                  <a-tag v-if="p.rank !== null" size="small" :color="p.rank > 0 ? 'green' : 'red'" class="mono">
                     {{ p.rank > 0 ? '#' + p.rank : '未上榜' }}
                   </a-tag>
                   <span v-else class="t-placeholder">—</span>
