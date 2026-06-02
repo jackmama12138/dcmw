@@ -56,6 +56,14 @@
                 <i class="db__runcount-dot"></i>运行中 <b>{{ w.slots.busy }}</b>
               </span>
               <span v-else class="db__runcount">{{ w.slots.total }} 节点</span>
+
+              <!-- 节点状态汇总：上榜/未上榜/未登陆 -->
+              <span v-if="rollup(w).total" class="db__rollup">
+                <span v-if="rollup(w).ranked"   class="db__rollup-item"><i class="db__sq db__sq--green"></i>{{ rollup(w).ranked }}</span>
+                <span v-if="rollup(w).unranked" class="db__rollup-item"><i class="db__sq db__sq--red"></i>{{ rollup(w).unranked }}</span>
+                <span v-if="rollup(w).unlogged" class="db__rollup-item"><i class="db__sq db__sq--orange"></i>{{ rollup(w).unlogged }}</span>
+              </span>
+
               <span class="db__spacer"></span>
               <a-space :size="2" class="db__worker-actions">
                 <a-button size="mini" type="text" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
@@ -259,6 +267,17 @@ function groupByWorker(nodes) {
   const m = {};
   for (const n of nodes) { (m[n.workerId] ??= []).push(n); }
   return m;
+}
+
+// ── 节点状态汇总：已上榜(绿)/未上榜(红)/未登陆(橙) ──
+function rollup(w) {
+  let ranked = 0, unranked = 0, unlogged = 0;
+  for (const p of w.profiles) {
+    if (p.isLoggedIn === false) unlogged++;
+    else if (p.rank > 0) ranked++;
+    else if (p.isLoggedIn === true) unranked++;
+  }
+  return { ranked, unranked, unlogged, total: ranked + unranked + unlogged };
 }
 
 // ── 当前动作（progressMap 实时优先，回退 currentAction）──
@@ -508,6 +527,13 @@ onMounted(async () => {
   animation: db-pulse 1.4s ease-in-out infinite;
 }
 @keyframes db-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+/* 节点状态汇总徽标 */
+.db__rollup { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.db__rollup-item { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 600; color: var(--tx-2); }
+.db__sq { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.db__sq--green  { background: var(--success); }
+.db__sq--red    { background: #f98981; }
+.db__sq--orange { background: #ff9a4d; }
 .db__spacer { flex: 1; }
 
 /* Profile 数据行（最底层级）：白底，hover 浅灰，左侧缩进与强调条对齐 */
