@@ -136,19 +136,25 @@ onMounted(load);
 .tm__item:hover { border-color: var(--primary); }
 .tm__item--active { border-color: var(--primary); background: #e8f0fe; }
 .tm__item-name { font-size: 13px; color: var(--primary); white-space: nowrap; }
-/* 删除叉：与文字拉开间距 + 独立点击区，默认半隐藏，hover 才明显，避免误触 */
+/* 删除按钮：与文字拉开间距，hover 时显示为清晰的红色圆形按钮，避免误触 */
 .tm__item-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   margin-left: 14px;
-  padding: 4px;
-  font-size: 12px;
-  color: var(--tx-4);
+  font-size: 11px;
+  color: var(--danger);
+  background: rgba(245, 63, 63, 0.12);
+  border-radius: 50%;
   opacity: 0;
-  border-radius: 4px;
+  transform: scale(0.6);
   cursor: pointer;
-  transition: color 0.15s, opacity 0.15s, background 0.15s;
+  transition: opacity 0.15s, transform 0.15s, background 0.15s, color 0.15s;
 }
-.tm__item:hover .tm__item-del { opacity: 1; }
-.tm__item-del:hover { color: var(--danger); background: rgba(245, 63, 63, 0.1); }
+.tm__item:hover .tm__item-del { opacity: 1; transform: scale(1); }
+.tm__item-del:hover { color: #fff; background: var(--danger); }
 
 /* 编辑头部：名称 / 描述 / task_time 一行 */
 .tm__editor-head {
