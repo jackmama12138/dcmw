@@ -2,7 +2,13 @@
   <a-card class="at-card" :bordered="true" :body-style="{ padding: '0' }">
     <template #title><span class="at__title">执行中</span></template>
     <template #extra>
-      <a-space :size="12">
+      <a-space :size="16">
+        <a-space :size="10" class="at__legend">
+          <span class="at__legend-item"><i class="at__dot at__node--green"></i>已上榜</span>
+          <span class="at__legend-item"><i class="at__dot at__node--red"></i>未上榜</span>
+          <span class="at__legend-item"><i class="at__dot at__node--orange"></i>未登陆</span>
+        </a-space>
+        <a-divider direction="vertical" />
         <span class="at__meta">运行中 <b class="t-amber">{{ totalRunning }}</b> 个节点</span>
         <span class="at__meta">共 <b>{{ urlGroups.length }}</b> 个 URL</span>
       </a-space>
@@ -81,9 +87,9 @@ const urlGroups = computed(() => {
 const totalRunning = computed(() => urlGroups.value.reduce((s, g) => s + g.nodes.length, 0));
 
 function nodeClass(n) {
-  return n.isLoggedIn === false ? 'at__node--red'
-       : n.rank > 0 ? 'at__node--green'
-       : 'at__node--orange';
+  return n.isLoggedIn === false ? 'at__node--orange'  // 未登陆 → 橙
+       : n.rank > 0 ? 'at__node--green'               // 已上榜 → 绿
+       : 'at__node--red';                             // 未上榜 → 红
 }
 function nodeTip(n) {
   const login = n.isLoggedIn === false ? '未登陆' : n.isLoggedIn === true ? '已登陆' : '未知';
@@ -151,6 +157,10 @@ async function screenshotGroup(nodes) {
 .at__title { font-size: 14px; font-weight: 600; }
 .at__meta  { font-size: 12px; color: var(--tx-3); }
 .t-amber   { color: var(--warning); }
+
+/* 色块图例 */
+.at__legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--tx-2); }
+.at__dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
 
 .at__body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 
