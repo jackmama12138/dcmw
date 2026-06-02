@@ -2,7 +2,16 @@
   <div class="db">
     <!-- Worker 列表 -->
     <a-card class="db__card" :bordered="true" :body-style="{ padding: '0', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }">
-      <template #title><span class="db__title">Worker 节点</span></template>
+      <template #title>
+        <a-space :size="14" align="center">
+          <span class="db__title">Worker 节点</span>
+          <a-space :size="10" class="db__legend">
+            <span class="db__legend-item"><i class="db__legend-dot db__legend-dot--green"></i>已上榜</span>
+            <span class="db__legend-item"><i class="db__legend-dot db__legend-dot--red"></i>未上榜</span>
+            <span class="db__legend-item"><i class="db__legend-dot db__legend-dot--orange"></i>未登陆</span>
+          </a-space>
+        </a-space>
+      </template>
       <template #extra>
         <a-space :size="12" align="center" class="db__head-stats">
           <span>在线 <b class="t-success">{{ onlineWorkers }}</b></span>
@@ -418,6 +427,11 @@ onMounted(async () => {
 .db { display: flex; flex-direction: column; height: calc(100vh - 96px); gap: 6px; }
 .db__card { flex: 1; min-height: 0; overflow: hidden; }
 .db__title { font-size: 14px; font-weight: 600; }
+.db__legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--tx-3); font-weight: 400; }
+.db__legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.db__legend-dot--green  { background: var(--success); }
+.db__legend-dot--red    { background: #f98981; }
+.db__legend-dot--orange { background: #ff9a4d; }
 .db__head-stats { font-size: 12px; color: var(--tx-3); }
 .db__batch { width: 56px; }
 
