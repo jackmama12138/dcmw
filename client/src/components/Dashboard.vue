@@ -484,26 +484,30 @@ onMounted(async () => {
 .db__worker-head:hover { background: #e6eaf2; }
 .db__caret { font-size: var(--fs-xs); color: var(--tx-3); width: 10px; flex-shrink: 0; }
 .db__worker-id { font-size: var(--fs-sm); font-weight: 700; color: var(--tx-1); flex-shrink: 0; letter-spacing: 0.3px; }
-/* 运行数：默认灰底，有运行时主色高亮更醒目 */
+/* 运行数：默认灰底低调；有运行时实心蓝底白字高亮，对比强烈 */
 .db__runcount {
   flex-shrink: 0;
   display: inline-flex;
   align-items: baseline;
-  gap: 1px;
-  height: 22px;
-  padding: 0 8px;
-  line-height: 22px;
-  font-size: var(--fs-xs);
+  gap: 2px;
+  height: 24px;
+  padding: 0 10px;
+  line-height: 24px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
   color: var(--tx-3);
-  background: var(--bg-card);
-  border: 1px solid var(--bd-color);
-  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  border-radius: 12px;
 }
-.db__runcount b { font-size: var(--fs-sm); font-weight: 700; color: var(--tx-2); }
-.db__runcount-total { color: var(--tx-4); }
-.db__runcount--active { color: var(--primary); background: #e8f0fe; border-color: #bcd3ff; }
-.db__runcount--active b { color: var(--primary); }
-.db__runcount--active .db__runcount-total { color: #6aa1ff; }
+.db__runcount b { font-size: 15px; font-weight: 800; color: var(--tx-2); }
+.db__runcount-total { color: var(--tx-4); font-weight: 600; }
+.db__runcount--active {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 1px 4px rgba(22, 93, 255, 0.35);
+}
+.db__runcount--active b { color: #fff; }
+.db__runcount--active .db__runcount-total { color: rgba(255, 255, 255, 0.7); }
 .db__spacer { flex: 1; }
 
 /* Profile 数据行（最底层级）：白底，hover 浅灰，左侧缩进与强调条对齐 */
