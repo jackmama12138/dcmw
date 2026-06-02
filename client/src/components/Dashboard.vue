@@ -52,9 +52,10 @@
                 @click.stop="handleWorkerSelect($event, w.workerId)" />
               <a-badge :status="w.connected ? 'success' : 'danger'" />
               <span class="mono db__worker-id">{{ w.workerId }}</span>
-              <span class="db__runcount" :class="{ 'db__runcount--active': w.slots.busy > 0 }">
-                运行 <b>{{ w.slots.busy }}</b><span class="db__runcount-total">/{{ w.slots.total }}</span>
+              <span v-if="w.slots.busy > 0" class="db__runcount db__runcount--active">
+                <i class="db__runcount-dot"></i>运行中 <b>{{ w.slots.busy }}</b>
               </span>
+              <span v-else class="db__runcount">{{ w.slots.total }} 节点</span>
               <span class="db__spacer"></span>
               <a-space :size="2" class="db__worker-actions">
                 <a-button size="mini" type="text" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
@@ -484,25 +485,28 @@ onMounted(async () => {
 .db__worker-head:hover { background: #e6eaf2; }
 .db__caret { font-size: var(--fs-xs); color: var(--tx-3); width: 10px; flex-shrink: 0; }
 .db__worker-id { font-size: var(--fs-sm); font-weight: 700; color: var(--tx-1); flex-shrink: 0; letter-spacing: 0.3px; }
-/* 运行数：不运行时安静的浅灰文字；有运行时才变实心蓝胶囊高亮 */
+/* 节点状态：空闲时安静浅灰「N 节点」；有运行时实心绿胶囊「运行中 N」 */
 .db__runcount {
   flex-shrink: 0;
   display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-  padding: 1px 8px;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
   font-size: var(--fs-xs);
   color: var(--tx-3);
-  border-radius: 10px;
+  border-radius: 11px;
 }
-.db__runcount b { font-size: var(--fs-sm); font-weight: 600; color: var(--tx-3); }
-.db__runcount-total { color: var(--tx-4); }
+.db__runcount b { font-size: var(--fs-sm); font-weight: 700; }
 .db__runcount--active {
   color: #fff;
-  background: var(--primary);
+  background: var(--success);
 }
-.db__runcount--active b { color: #fff; font-weight: 700; }
-.db__runcount--active .db__runcount-total { color: rgba(255, 255, 255, 0.7); }
+.db__runcount-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #fff;
+  animation: db-pulse 1.4s ease-in-out infinite;
+}
+@keyframes db-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .db__spacer { flex: 1; }
 
 /* Profile 数据行（最底层级）：白底，hover 浅灰，左侧缩进与强调条对齐 */
