@@ -1,47 +1,44 @@
 <template>
-  <div class="bg-white rounded-xl p-5 border border-gray-200">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold">Worker 状态</h2>
-      <span class="text-xs text-gray-600">每 10s 自动刷新</span>
-    </div>
+  <a-card :bordered="true">
+    <template #title><span class="ws__title">Worker 状态</span></template>
+    <template #extra><span class="ws__meta">每 10s 自动刷新</span></template>
 
-    <div v-if="!workers.length" class="text-sm text-gray-500 text-center py-8">暂无连接的 Worker</div>
+    <a-empty v-if="!workers.length" description="暂无连接的 Worker" />
 
-    <div v-for="w in workers" :key="w.workerId" class="mb-4 last:mb-0 border border-gray-200 rounded-xl p-4">
-      <div class="flex items-center gap-3 mb-3">
-        <span :class="w.connected ? 'bg-green-500' : 'bg-red-500'" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></span>
-        <span class="font-mono text-sm text-blue-600 font-medium">{{ w.workerId }}</span>
-        <div class="ml-auto flex gap-3 text-xs">
-          <span class="text-gray-400">空闲 <b class="text-green-600">{{ w.slots.idle }}</b></span>
-          <span class="text-gray-400">忙碌 <b class="text-amber-500">{{ w.slots.busy }}</b></span>
-          <span class="text-gray-400">总计 <b class="text-gray-600">{{ w.slots.total }}</b></span>
+    <a-space v-else direction="vertical" :size="16" fill>
+      <a-card v-for="w in workers" :key="w.workerId" :bordered="true" size="small" class="ws__worker">
+        <div class="ws__worker-head">
+          <a-badge :status="w.connected ? 'success' : 'danger'" />
+          <span class="mono ws__worker-id">{{ w.workerId }}</span>
+          <a-space :size="12" class="ws__worker-stats">
+            <span class="ws__stat">空闲 <b class="t-green">{{ w.slots.idle }}</b></span>
+            <span class="ws__stat">忙碌 <b class="t-amber">{{ w.slots.busy }}</b></span>
+            <span class="ws__stat">总计 <b class="t-gray">{{ w.slots.total }}</b></span>
+          </a-space>
         </div>
-      </div>
 
-      <div class="flex flex-wrap gap-2">
-        <div v-for="p in w.profiles" :key="p.profileName"
-          :class="['text-xs px-2.5 py-1 rounded-lg border', profileStyle(p.state)]">
-          <span class="font-mono">{{ p.profileName }}</span>
-          <span v-if="p.taskId" class="ml-1.5 opacity-50 font-mono">{{ p.taskId }}</span>
-        </div>
-      </div>
+        <a-space wrap :size="8" class="ws__profiles">
+          <a-tag v-for="p in w.profiles" :key="p.profileName" :color="profileColor(p.state)">
+            <span class="mono">{{ p.profileName }}</span>
+            <span v-if="p.taskId" class="mono ws__profile-task">{{ p.taskId }}</span>
+          </a-tag>
+        </a-space>
 
-      <div class="text-xs text-gray-700 mt-2">
-        最近心跳 {{ formatAge(w.lastHeartbeat) }}
-      </div>
-    </div>
-  </div>
+        <div class="ws__heartbeat">最近心跳 {{ formatAge(w.lastHeartbeat) }}</div>
+      </a-card>
+    </a-space>
+  </a-card>
 </template>
 
 <script setup>
 const props = defineProps({ workers: { type: Array, default: () => [] } });
 
-function profileStyle(state) {
+function profileColor(state) {
   return {
-    idle: 'bg-gray-100 text-gray-500 border-gray-200',
-    busy: 'bg-amber-50 text-amber-600 border-amber-200',
-    error: 'bg-red-50 text-red-500 border-red-200',
-  }[state] ?? 'bg-gray-100 text-gray-500 border-gray-200';
+    idle:  'gray',
+    busy:  'orange',
+    error: 'red',
+  }[state] ?? 'gray';
 }
 
 function formatAge(ts) {
@@ -51,3 +48,24 @@ function formatAge(ts) {
   return `${Math.floor(s / 60)}m 前`;
 }
 </script>
+
+<style scoped>
+.ws__title { font-size: 16px; font-weight: 600; }
+.ws__meta  { font-size: 12px; color: var(--tx-3); }
+
+.ws__worker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ws__worker-id { font-size: 13px; color: var(--primary); font-weight: 500; }
+.ws__worker-stats { margin-left: auto; font-size: 12px; }
+.ws__stat { color: var(--tx-4); }
+.t-green { color: var(--success); }
+.t-amber { color: var(--warning); }
+.t-gray  { color: var(--tx-2); }
+
+.ws__profile-task { margin-left: 6px; opacity: 0.5; }
+.ws__heartbeat { font-size: 12px; color: var(--tx-2); margin-top: 8px; }
+</style>

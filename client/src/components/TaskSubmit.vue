@@ -1,95 +1,79 @@
 <template>
-  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-    <div class="px-5 py-3 border-b border-gray-200">
-      <h2 class="text-sm font-semibold">发布任务</h2>
-      <p class="text-xs text-gray-600 mt-0.5">选择模板或自定义 Pipeline，指定目标 URL 和节点数量后提交</p>
-    </div>
-    <div class="p-5">
+  <a-card :bordered="true" :body-style="{ padding: '20px' }">
+    <template #title><span class="ts__title">发布任务</span></template>
+    <template #extra><span class="ts__desc">选择模板或自定义 Pipeline，指定目标 URL 和节点数量后提交</span></template>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- target_url -->
-      <div class="md:col-span-2">
-        <label class="block text-xs text-gray-400 mb-1">目标 URL</label>
-        <input v-model="form.target_url" type="text" placeholder="https://live.douyin.com/..."
-          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-      </div>
+    <a-form :model="form" layout="vertical">
+      <a-row :gutter="16">
+        <a-col :span="24">
+          <a-form-item label="目标 URL">
+            <a-input v-model="form.target_url" placeholder="https://live.douyin.com/..." allow-clear />
+          </a-form-item>
+        </a-col>
 
-      <!-- task_type -->
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">任务类型</label>
-        <div class="flex gap-2">
-          <select v-if="templates.length" v-model="form.task_type"
-            class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
-            <option value="">— 自定义 Pipeline —</option>
-            <option v-for="t in templates" :key="t.name" :value="t.name">{{ t.name }}</option>
-          </select>
-          <input v-else v-model="form.task_type" placeholder="AFK"
-            class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-        </div>
-      </div>
+        <a-col :span="12">
+          <a-form-item label="任务类型">
+            <a-select v-if="templates.length" v-model="form.task_type" placeholder="— 自定义 Pipeline —" allow-clear>
+              <a-option value="">— 自定义 Pipeline —</a-option>
+              <a-option v-for="t in templates" :key="t.name" :value="t.name">{{ t.name }}</a-option>
+            </a-select>
+            <a-input v-else v-model="form.task_type" placeholder="AFK" />
+          </a-form-item>
+        </a-col>
 
-      <!-- count -->
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">数量 (count)</label>
-        <div class="flex gap-2">
-          <input v-model.number="form.count" type="number" min="1"
-            class="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-          <button v-if="form.target_worker_id" @click="fillAllSlots"
-            class="bg-gray-700 hover:bg-gray-100 text-xs px-3 rounded-lg transition-colors whitespace-nowrap">
-            全部节点
-          </button>
-        </div>
-      </div>
+        <a-col :span="12">
+          <a-form-item label="数量 (count)">
+            <a-space :size="8" fill>
+              <a-input-number v-model="form.count" :min="1" class="ts__count" />
+              <a-button v-if="form.target_worker_id" @click="fillAllSlots">全部节点</a-button>
+            </a-space>
+          </a-form-item>
+        </a-col>
 
-      <!-- task_time -->
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">持续时间 (秒)</label>
-        <input v-model.number="form.task_time" type="number" min="1"
-          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-      </div>
+        <a-col :span="12">
+          <a-form-item label="持续时间 (秒)">
+            <a-input-number v-model="form.task_time" :min="1" />
+          </a-form-item>
+        </a-col>
 
-      <!-- target worker -->
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">指定 Worker（可选）</label>
-        <select v-model="form.target_worker_id"
-          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
-          <option value="">全部 Worker</option>
-          <option v-for="w in workers" :key="w.workerId" :value="w.workerId">
-            {{ w.workerId }} ({{ w.slots.idle }} idle)
-          </option>
-        </select>
-      </div>
+        <a-col :span="12">
+          <a-form-item label="指定 Worker（可选）">
+            <a-select v-model="form.target_worker_id" placeholder="全部 Worker" allow-clear>
+              <a-option value="">全部 Worker</a-option>
+              <a-option v-for="w in workers" :key="w.workerId" :value="w.workerId">
+                {{ w.workerId }} ({{ w.slots.idle }} idle)
+              </a-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
 
-      <!-- target node (only when worker selected) -->
-      <div v-if="form.target_worker_id">
-        <label class="block text-xs text-gray-400 mb-1">指定 Profile（可选）</label>
-        <select v-model="form.target_profile"
-          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
-          <option value="">全部 Profile</option>
-          <option v-for="p in selectedWorkerProfiles" :key="p.profileName" :value="p.profileName">
-            {{ p.profileName }} ({{ p.state }})
-          </option>
-        </select>
-      </div>
+        <a-col v-if="form.target_worker_id" :span="12">
+          <a-form-item label="指定 Profile（可选）">
+            <a-select v-model="form.target_profile" placeholder="全部 Profile" allow-clear>
+              <a-option value="">全部 Profile</a-option>
+              <a-option v-for="p in selectedWorkerProfiles" :key="p.profileName" :value="p.profileName">
+                {{ p.profileName }} ({{ p.state }})
+              </a-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
 
-      <!-- custom pipeline (only when no task_type) -->
-      <div v-if="!form.task_type" class="md:col-span-2">
-        <label class="block text-xs text-gray-400 mb-1">Pipeline (JSON)</label>
-        <textarea v-model="form.pipelineJson" rows="5"
-          placeholder='[{"type":"navigate","url":"https://..."},{"type":"dwell"}]'
-          class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-400" />
-      </div>
-    </div>
+        <a-col v-if="!form.task_type" :span="24">
+          <a-form-item label="Pipeline (JSON)">
+            <a-textarea v-model="form.pipelineJson" :auto-size="{ minRows: 5, maxRows: 12 }"
+              placeholder='[{"type":"navigate","url":"https://..."},{"type":"dwell"}]' class="mono" />
+          </a-form-item>
+        </a-col>
+      </a-row>
 
-    <div class="mt-5 flex items-center gap-3">
-      <button @click="submit" :disabled="submitting"
-        class="bg-primary hover:bg-primary-hover text-white disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
-        {{ submitting ? '提交中…' : '发布任务' }}
-      </button>
-      <span v-if="msg" :class="isError ? 'text-red-500' : 'text-emerald-600'" class="text-sm">{{ msg }}</span>
-    </div>
-    </div>
-  </div>
+      <a-space :size="12" align="center">
+        <a-button type="primary" :loading="submitting" @click="submit">
+          {{ submitting ? '提交中…' : '发布任务' }}
+        </a-button>
+        <span v-if="msg" :class="isError ? 'ts__msg-err' : 'ts__msg-ok'">{{ msg }}</span>
+      </a-space>
+    </a-form>
+  </a-card>
 </template>
 
 <script setup>
@@ -180,3 +164,11 @@ onMounted(async () => {
   templates.value = await fetchTemplates().catch(() => []);
 });
 </script>
+
+<style scoped>
+.ts__title { font-size: 14px; font-weight: 600; }
+.ts__desc  { font-size: 12px; color: var(--tx-3); }
+.ts__count { width: 100%; }
+.ts__msg-err { font-size: 14px; color: var(--danger); }
+.ts__msg-ok  { font-size: 14px; color: var(--success); }
+</style>

@@ -1,172 +1,148 @@
 <template>
-  <div style="display:flex; flex-direction:column; height:calc(100vh - 96px); gap:6px">
-
+  <div class="db">
     <!-- Worker 列表 -->
-    <div class="bg-white border border-gray-200 rounded-xl" style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
-      <!-- 标题栏 -->
-      <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between" style="flex-shrink:0">
-        <h2 class="text-sm font-semibold">Worker 节点</h2>
-        <div class="flex items-center gap-3 text-xs text-gray-600">
-          <span>在线 <b style="color:var(--success)">{{ onlineWorkers }}</b></span>
-          <span>运行 <b style="color:var(--warning)">{{ busyNodes }}</b></span>
+    <a-card class="db__card" :bordered="true" :body-style="{ padding: '0', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }">
+      <template #title><span class="db__title">Worker 节点</span></template>
+      <template #extra>
+        <a-space :size="12" align="center" class="db__head-stats">
+          <span>在线 <b class="t-success">{{ onlineWorkers }}</b></span>
+          <span>运行 <b class="t-warning">{{ busyNodes }}</b></span>
           <span>空闲 <b>{{ idleNodes }}</b></span>
-          <span style="color:#d1d5db">|</span>
-          <span class="text-gray-400">每次</span>
-          <input v-model.number="perWorkerBatch" @change="savePerWorkerBatch" type="number" min="1"
-            class="bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-400 text-center"
-            style="width:36px" />
-          <span class="text-gray-400">个/Worker</span>
-          <span style="color:#d1d5db">|</span>
-          <button @click="setMode('sequential')"
-            :class="['text-xs px-2 py-0.5 rounded transition-colors', dispatchMode==='sequential' ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']"
-            :style="dispatchMode==='sequential' ? 'background:var(--primary)' : ''">顺序</button>
-          <button @click="setMode('random')"
-            :class="['text-xs px-2 py-0.5 rounded transition-colors', dispatchMode==='random' ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']"
-            :style="dispatchMode==='random' ? 'background:var(--primary)' : ''">随机</button>
-        </div>
-      </div>
-      <!-- Worker 内容 -->
-      <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column">
-        <div v-if="!workers.length" class="text-xs text-gray-600 text-center py-4">无 Worker 连接</div>
-        <div v-else style="flex:1; min-height:0; overflow-y:auto">
+          <a-divider direction="vertical" />
+          <span class="t-muted">每次</span>
+          <a-input-number v-model="perWorkerBatch" :min="1" size="mini" class="db__batch" @change="savePerWorkerBatch" />
+          <span class="t-muted">个/Worker</span>
+          <a-divider direction="vertical" />
+          <a-radio-group v-model="dispatchMode" type="button" size="mini" @change="setMode">
+            <a-radio value="sequential">顺序</a-radio>
+            <a-radio value="random">随机</a-radio>
+          </a-radio-group>
+        </a-space>
+      </template>
+
+      <div class="db__content">
+        <a-empty v-if="!workers.length" description="无 Worker 连接" class="db__empty" />
+        <div v-else class="db__scroll">
           <!-- 列标题行 -->
-          <div class="grid items-center border-b border-gray-200 px-4 py-2 text-xs text-gray-600 select-none"
-            style="grid-template-columns:16px 16px 90px 52px 1fr 56px 1fr minmax(210px,auto); position:sticky; top:0; z-index:10; background:#fff">
-            <span></span>
-            <span></span>
-            <span>节点</span>
-            <span>登录</span>
-            <span>用户名</span>
-            <span class="text-center">排名</span>
-            <span>进度</span>
-            <span class="text-right">操作</span>
-          </div>
+          <a-row class="db__col-head">
+            <a-col flex="16px"></a-col>
+            <a-col flex="16px"></a-col>
+            <a-col flex="90px">节点</a-col>
+            <a-col flex="52px">登录</a-col>
+            <a-col flex="1">用户名</a-col>
+            <a-col flex="56px" class="db__center">排名</a-col>
+            <a-col flex="1">进度</a-col>
+            <a-col flex="210px" class="db__right">操作</a-col>
+          </a-row>
+
           <template v-for="w in workers" :key="w.workerId">
             <!-- Worker 标题行 -->
-            <div @click="toggleWorker(w.workerId)"
-              style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:var(--bg-page); border-bottom:1px solid var(--bd-color); position:sticky; top:25px; z-index:9; cursor:pointer; user-select:none">
-              <span class="text-xs text-gray-400 flex-shrink-0" style="width:10px">{{ collapsedWorkers.has(w.workerId) ? '▶' : '▼' }}</span>
-              <input type="checkbox" :checked="selectedWorkers.has(w.workerId)"
-                @click.stop="handleWorkerSelect($event, w.workerId)"
-                style="cursor:pointer; flex-shrink:0" />
-              <span :class="w.connected ? 'bg-emerald-400' : 'bg-red-400'" class="rounded-full flex-shrink-0" style="width:6px; height:6px"></span>
-              <span class="font-mono text-xs font-semibold text-gray-800 flex-shrink-0">{{ w.workerId }}</span>
-              <span class="text-xs text-gray-400 flex-shrink-0 bg-gray-100 border border-gray-200 rounded font-mono" style="padding:0 5px; line-height:18px">{{ w.slots.busy }}/{{ w.slots.total }}</span>
-              <span style="flex:1"></span>
-              <div style="display:flex; gap:4px; flex-shrink:0">
-                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&(getProgress(w.workerId,p.profileName)?.action??p.currentAction)==='dwell'); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} checkRanklist(dw.map(p=>({workerId:w.workerId,profileName:p.profileName,rank:p.rank,nickname:p.nickname,isLoggedIn:p.isLoggedIn}))) }"
-                  class="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 rounded transition-colors" style="padding:1px 7px">获取榜单</button>
-                <button @click.stop="stopUnloggedWorker(w)"
-                  class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:1px 7px">停未登陆</button>
-                <button @click.stop="stopUnrankedWorker(w)"
-                  class="text-xs bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-500 rounded transition-colors" style="padding:1px 7px">停未上榜</button>
-                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&(getProgress(w.workerId,p.profileName)?.action??p.currentAction)==='dwell'&&p.isLoggedIn&&(p.rank===null||p.rank<=0)); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} douyinReload(dw.map(p=>({workerId:w.workerId,profileName:p.profileName}))) }"
-                  class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:1px 7px">刷新未上榜</button>
-                <button @click.stop="stopWorker(w.workerId)"
-                  class="text-xs bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-500 rounded transition-colors" style="padding:1px 7px">全停</button>
-              </div>
+            <div class="db__worker-head" @click="toggleWorker(w.workerId)">
+              <span class="db__caret">{{ collapsedWorkers.has(w.workerId) ? '▶' : '▼' }}</span>
+              <a-checkbox :model-value="selectedWorkers.has(w.workerId)"
+                @click.stop="handleWorkerSelect($event, w.workerId)" />
+              <a-badge :status="w.connected ? 'success' : 'danger'" />
+              <span class="mono db__worker-id">{{ w.workerId }}</span>
+              <a-tag size="small" class="mono">{{ w.slots.busy }}/{{ w.slots.total }}</a-tag>
+              <span class="db__spacer"></span>
+              <a-space :size="4">
+                <a-button size="mini" type="outline" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
+                <a-button size="mini" type="outline" status="danger" @click.stop="stopUnloggedWorker(w)">停未登陆</a-button>
+                <a-button size="mini" type="outline" status="warning" @click.stop="stopUnrankedWorker(w)">停未上榜</a-button>
+                <a-button size="mini" @click.stop="reloadDwell(w)">刷新未上榜</a-button>
+                <a-button size="mini" status="danger" @click.stop="stopWorker(w.workerId)">全停</a-button>
+              </a-space>
             </div>
+
             <!-- 该 Worker 下各 Profile 行 -->
             <template v-if="!collapsedWorkers.has(w.workerId)">
-              <div v-for="p in w.profiles" :key="p.profileName"
-                class="hover:bg-gray-50 transition-colors"
-                style="display:grid; grid-template-columns:16px 16px 90px 52px 1fr 56px 1fr minmax(210px,auto); align-items:center; padding:5px 10px; border-bottom:1px solid var(--bd-color)">
+              <a-row v-for="p in w.profiles" :key="p.profileName" align="center" class="db__row">
                 <!-- 状态点 -->
-                <span style="padding-left:4px">
-                  <span :class="p.state==='busy' ? 'bg-emerald-500' : p.state==='error' ? 'bg-red-400' : 'bg-gray-300'"
-                    class="w-1.5 h-1.5 rounded-full inline-block"></span>
-                </span>
+                <a-col flex="16px" class="db__dot-cell">
+                  <span :class="['db__dot', p.state === 'busy' ? 'db__dot--busy' : p.state === 'error' ? 'db__dot--err' : 'db__dot--idle']"></span>
+                </a-col>
                 <!-- 勾选占位 -->
-                <span></span>
+                <a-col flex="16px"></a-col>
                 <!-- Profile 名 -->
-                <span class="text-xs font-mono text-gray-500 truncate" :title="p.profileName">{{ p.profileName }}</span>
+                <a-col flex="90px" class="db__cell-ellipsis">
+                  <span class="mono db__profile" :title="p.profileName">{{ p.profileName }}</span>
+                </a-col>
                 <!-- 登录态 -->
-                <span>
-                  <span v-if="p.isLoggedIn === false"
-                    class="text-xs border rounded bg-red-50 border-red-200 text-red-500" style="padding:0 4px; white-space:nowrap">未登录</span>
-                  <span v-else-if="p.isLoggedIn === true"
-                    class="text-xs border rounded bg-emerald-50 border-emerald-200 text-emerald-600" style="padding:0 4px; white-space:nowrap">已登录</span>
-                  <span v-else class="text-xs text-gray-300">—</span>
-                </span>
+                <a-col flex="52px">
+                  <a-tag v-if="p.isLoggedIn === false" size="small" color="red">未登录</a-tag>
+                  <a-tag v-else-if="p.isLoggedIn === true" size="small" color="green">已登录</a-tag>
+                  <span v-else class="t-placeholder">—</span>
+                </a-col>
                 <!-- 用户名 -->
-                <span class="text-xs text-gray-600 truncate" :title="p.nickname ?? ''">{{ p.nickname || '' }}</span>
+                <a-col flex="1" class="db__cell-ellipsis">
+                  <span class="db__nick" :title="p.nickname ?? ''">{{ p.nickname || '' }}</span>
+                </a-col>
                 <!-- 排名 -->
-                <span class="text-center">
-                  <span v-if="p.rank !== null"
-                    :class="p.rank > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-orange-50 border-orange-200 text-orange-500'"
-                    class="text-xs border rounded font-mono" style="padding:0 4px">
+                <a-col flex="56px" class="db__center">
+                  <a-tag v-if="p.rank !== null" size="small" :color="p.rank > 0 ? 'green' : 'orange'" class="mono">
                     {{ p.rank > 0 ? '#' + p.rank : '未上榜' }}
-                  </span>
-                  <span v-else class="text-xs text-gray-300">—</span>
-                </span>
+                  </a-tag>
+                  <span v-else class="t-placeholder">—</span>
+                </a-col>
                 <!-- 页面标题 + 进度 -->
-                <div style="display:flex; align-items:center; gap:4px; overflow:hidden; min-width:0">
-                  <span class="text-xs text-gray-400 truncate" :title="p.currentUrl ?? ''">{{ p.currentTitle || p.currentUrl || '' }}</span>
-                  <template v-if="getProgress(w.workerId, p.profileName)">
-                    <span class="text-xs text-gray-300 flex-shrink-0">·</span>
-                    <span class="text-xs text-gray-400 font-mono flex-shrink-0">{{ getProgress(w.workerId, p.profileName).step }}/{{ getProgress(w.workerId, p.profileName).total }}</span>
-                    <span class="text-xs text-gray-400 flex-shrink-0">{{ getProgress(w.workerId, p.profileName).action }}</span>
-                  </template>
-                </div>
+                <a-col flex="1">
+                  <div class="db__progress">
+                    <span class="db__page-title" :title="p.currentUrl ?? ''">{{ p.currentTitle || p.currentUrl || '' }}</span>
+                    <template v-if="getProgress(w.workerId, p.profileName)">
+                      <span class="t-placeholder db__dot-sep">·</span>
+                      <span class="mono db__progress-step">{{ getProgress(w.workerId, p.profileName).step }}/{{ getProgress(w.workerId, p.profileName).total }}</span>
+                      <span class="db__progress-action">{{ getProgress(w.workerId, p.profileName).action }}</span>
+                    </template>
+                  </div>
+                </a-col>
                 <!-- 操作 -->
-                <div style="display:flex; justify-content:flex-end; gap:3px">
-                  <button @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])"
-                    :disabled="p.currentAction !== 'dwell'"
-                    :class="p.currentAction === 'dwell' ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-500' : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'"
-                    class="text-xs border rounded transition-colors" style="padding:0 5px">榜单</button>
-                  <button @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])"
-                    :disabled="p.currentAction !== 'dwell'"
-                    :class="p.currentAction === 'dwell' ? 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-500' : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'"
-                    class="text-xs border rounded transition-colors" style="padding:0 5px">刷新</button>
-                  <button v-if="p.state === 'busy'" @click="takeScreenshot(w.workerId, p.profileName, p.taskId)"
-                    class="text-xs bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-500 rounded transition-colors" style="padding:0 5px">截图</button>
-                  <button v-if="p.state === 'busy'" @click="stopNode(w.workerId, p.profileName)"
-                    class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:0 5px">停止</button>
-                </div>
-              </div>
+                <a-col flex="210px">
+                  <a-space :size="3" class="db__right-actions">
+                    <a-button size="mini" type="outline"
+                      :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
+                      @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])">榜单</a-button>
+                    <a-button size="mini"
+                      :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
+                      @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])">刷新</a-button>
+                    <a-button v-if="p.state === 'busy'" size="mini" class="btn-accent"
+                      @click="takeScreenshot(w.workerId, p.profileName, p.taskId)">截图</a-button>
+                    <a-button v-if="p.state === 'busy'" size="mini" status="danger"
+                      @click="stopNode(w.workerId, p.profileName)">停止</a-button>
+                  </a-space>
+                </a-col>
+              </a-row>
             </template>
           </template>
         </div>
-      </div><!-- /Worker 内容 -->
-    </div><!-- /Worker 列表卡片 -->
+      </div>
+    </a-card>
 
     <!-- 发布任务：固定在底部 -->
-    <div class="bg-white border border-gray-200 rounded-lg" style="flex-shrink:0; display:flex; align-items:center; gap:12px; padding:10px 16px">
-      <input v-model="form.target_url" placeholder="目标 URL" type="text"
-        class="bg-gray-50 border border-gray-200 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-blue-400"
-        style="flex:1; min-width:200px" />
-      <div style="display:flex; align-items:center; gap:8px; max-width:420px; overflow-x:auto; flex-shrink:1; scrollbar-width:none">
-        <label v-for="t in templates" :key="t.name"
-          class="text-xs text-gray-400 hover:text-gray-800 cursor-pointer"
-          style="display:flex; align-items:center; gap:4px; white-space:nowrap; flex-shrink:0">
-          <input type="radio" v-model="form.task_type" :value="t.name" class="accent-indigo-500 cursor-pointer" />
-          {{ t.name }}
-        </label>
+    <a-card class="db__publish" :bordered="true" :body-style="{ padding: '10px 16px' }">
+      <div class="db__publish-row">
+        <a-input v-model="form.target_url" placeholder="目标 URL" size="small" class="db__publish-url" />
+        <div class="db__templates">
+          <a-radio-group v-model="form.task_type" size="small">
+            <a-radio v-for="t in templates" :key="t.name" :value="t.name">{{ t.name }}</a-radio>
+          </a-radio-group>
+        </div>
+        <a-divider direction="vertical" />
+        <a-space :size="6" align="center">
+          <span class="t-muted">数量</span>
+          <a-input-number v-model="form.count" :min="1" size="small" class="db__publish-num" />
+        </a-space>
+        <a-space :size="6" align="center">
+          <span class="t-muted">时长</span>
+          <a-input-number v-model="form.duration_min" :min="1" size="small" class="db__publish-num" />
+          <span class="t-muted">分钟</span>
+        </a-space>
+        <a-button type="primary" size="small" :loading="submitting" @click="submit">
+          {{ submitting ? '提交中…' : '发布' }}
+        </a-button>
+        <span v-if="submitMsg" :class="submitError ? 't-danger' : 't-success'" class="db__submit-msg">{{ submitMsg }}</span>
       </div>
-      <span class="text-gray-700" style="flex-shrink:0">|</span>
-      <div style="display:flex; align-items:center; gap:6px; flex-shrink:0">
-        <span class="text-xs text-gray-500">数量</span>
-        <input v-model.number="form.count" type="number" min="1"
-          class="bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400 text-center"
-          style="width:56px" />
-      </div>
-      <div style="display:flex; align-items:center; gap:6px; flex-shrink:0">
-        <span class="text-xs text-gray-500">时长</span>
-        <input v-model.number="form.duration_min" type="number" min="1"
-          class="bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400 text-center"
-          style="width:60px" />
-        <span class="text-xs text-gray-600">分钟</span>
-      </div>
-      <button @click="submit" :disabled="submitting"
-        class="bg-primary hover:bg-primary-hover text-white disabled:opacity-50 px-4 py-1.5 rounded text-xs font-medium transition-colors"
-        style="flex-shrink:0">
-        {{ submitting ? '提交中…' : '发布' }}
-      </button>
-      <span v-if="submitMsg" :class="submitError ? 'text-red-500' : 'text-emerald-600'" class="text-xs" style="flex-shrink:0">{{ submitMsg }}</span>
-    </div>
-
+    </a-card>
   </div>
-
 </template>
 
 <script setup>
@@ -272,6 +248,23 @@ function groupByWorker(nodes) {
   return m;
 }
 
+// ── 当前动作（progressMap 实时优先，回退 currentAction）──
+function effectiveAction(workerId, p) {
+  return getProgress(workerId, p.profileName)?.action ?? p.currentAction;
+}
+
+// ── Worker 级 dwell 批量操作 ──────────────────────────
+function checkRanklistDwell(w) {
+  const dw = w.profiles.filter(p => p.state === 'busy' && effectiveAction(w.workerId, p) === 'dwell');
+  if (!dw.length) { toast('暂无节点处于挂机阶段', 'warn'); return; }
+  checkRanklist(dw.map(p => ({ workerId: w.workerId, profileName: p.profileName, rank: p.rank, nickname: p.nickname, isLoggedIn: p.isLoggedIn })));
+}
+function reloadDwell(w) {
+  const dw = w.profiles.filter(p => p.state === 'busy' && effectiveAction(w.workerId, p) === 'dwell' && p.isLoggedIn && (p.rank === null || p.rank <= 0));
+  if (!dw.length) { toast('暂无节点处于挂机阶段', 'warn'); return; }
+  douyinReload(dw.map(p => ({ workerId: w.workerId, profileName: p.profileName })));
+}
+
 // ── 辅助函数 ──────────────────────────────────────────
 
 // ── Worker 多选 ───────────────────────────────────────
@@ -299,14 +292,14 @@ function handleWorkerSelect(e, wid) {
 
 // ── 操作 ──────────────────────────────────────────────
 async function setMode(mode) {
-  try { await setSchedulerConfig({ dispatch_mode: mode }); dispatchMode.value = mode; } catch (err) { alert(err.message); }
+  try { await setSchedulerConfig({ dispatch_mode: mode }); dispatchMode.value = mode; } catch (err) { toast(err.message, 'warn'); }
 }
 
 async function savePerWorkerBatch() {
-  try { await setSchedulerConfig({ per_worker_batch: perWorkerBatch.value }); } catch (err) { alert(err.message); }
+  try { await setSchedulerConfig({ per_worker_batch: perWorkerBatch.value }); } catch (err) { toast(err.message, 'warn'); }
 }
 async function adjust(url, delta) {
-  try { await adjustTime(url, delta); emit('refresh'); } catch (err) { alert(err.message); }
+  try { await adjustTime(url, delta); emit('refresh'); } catch (err) { toast(err.message, 'warn'); }
 }
 function stopUrl(url) {
   wsSend({ type: 'stop_url', target_url: url });
@@ -420,3 +413,91 @@ onMounted(async () => {
 });
 </script>
 
+<style scoped>
+.db { display: flex; flex-direction: column; height: calc(100vh - 96px); gap: 6px; }
+.db__card { flex: 1; min-height: 0; overflow: hidden; }
+.db__title { font-size: 14px; font-weight: 600; }
+.db__head-stats { font-size: 12px; color: var(--tx-3); }
+.db__batch { width: 56px; }
+
+.t-success { color: var(--success); }
+.t-warning { color: var(--warning); }
+.t-danger  { color: var(--danger); }
+.t-muted   { color: var(--tx-3); }
+.t-placeholder { color: var(--tx-4); font-size: 12px; }
+
+.db__content { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.db__empty   { padding: 16px 0; }
+.db__scroll  { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* 列标题行：与全局 .arco-table-th 表头同款（浅灰底 / 12px / 弱化色）*/
+.db__col-head {
+  padding: 0 16px;
+  height: 36px;
+  align-items: center;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--tx-3);
+  border-bottom: 1px solid var(--bd-color);
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-page);
+}
+.db__center { text-align: center; }
+.db__right  { text-align: right; }
+
+.db__worker-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--bd-color);
+  position: sticky;
+  top: 36px;
+  z-index: 9;
+  cursor: pointer;
+  user-select: none;
+}
+.db__caret { font-size: var(--fs-xs); color: var(--tx-4); width: 10px; flex-shrink: 0; }
+.db__worker-id { font-size: var(--fs-sm); font-weight: 600; color: var(--tx-1); flex-shrink: 0; }
+.db__spacer { flex: 1; }
+
+/* 数据行：与全局表格行高 / 字号对齐 */
+.db__row {
+  min-height: var(--table-row-h);
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--bd-color);
+  transition: background 0.15s;
+}
+.db__row:hover { background: var(--bg-page); }
+
+.db__dot-cell { padding-left: 4px; }
+.db__dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.db__dot--busy { background: var(--success); }
+.db__dot--err  { background: #f98981; }
+.db__dot--idle { background: var(--idle-block); }
+
+.db__cell-ellipsis { overflow: hidden; }
+.db__profile { font-size: var(--fs-sm); color: var(--tx-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.db__nick { font-size: var(--fs-sm); color: var(--tx-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+.db__progress { display: flex; align-items: center; gap: 4px; overflow: hidden; min-width: 0; }
+.db__page-title { font-size: var(--fs-xs); color: var(--tx-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db__dot-sep { flex-shrink: 0; }
+.db__progress-step { font-size: var(--fs-xs); color: var(--tx-4); flex-shrink: 0; }
+.db__progress-action { font-size: var(--fs-xs); color: var(--tx-3); flex-shrink: 0; }
+
+.db__right-actions { justify-content: flex-end; width: 100%; }
+
+.db__publish { flex-shrink: 0; }
+.db__publish-row { display: flex; align-items: center; gap: 12px; }
+.db__publish-url { flex: 1; min-width: 200px; }
+.db__templates { display: flex; align-items: center; max-width: 420px; overflow-x: auto; flex-shrink: 1; }
+.db__templates :deep(.arco-radio-group) { white-space: nowrap; }
+.db__publish-num { width: 80px; }
+.db__submit-msg { font-size: 12px; flex-shrink: 0; }
+</style>

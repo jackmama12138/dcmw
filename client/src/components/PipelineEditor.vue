@@ -1,87 +1,96 @@
 <template>
-  <div class="space-y-2">
-    <draggable v-model="localSteps" item-key="_id" handle=".drag-handle" ghost-class="opacity-40" animation="150">
+  <div class="pe">
+    <draggable v-model="localSteps" item-key="_id" handle=".drag-handle" ghost-class="pe__ghost" animation="150">
       <template #item="{ element, index }">
-        <div class="flex items-start gap-2 bg-white border border-gray-200 rounded-lg p-3 group">
-          <div class="drag-handle mt-0.5 cursor-grab text-gray-400 hover:text-gray-600 select-none text-lg leading-none">⠿</div>
-          <div class="text-xs text-gray-400 mt-1 w-4 text-right flex-shrink-0">{{ index + 1 }}</div>
+        <a-card class="pe__step" size="small" :bordered="true" :body-style="{ padding: '12px' }">
+          <div class="pe__step-row">
+            <div class="drag-handle pe__handle">⠿</div>
+            <div class="pe__index">{{ index + 1 }}</div>
 
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-2">
-              <span :class="['text-xs font-medium px-2 py-0.5 rounded cursor-default', stepDef(element.type).badge]"
-                :title="stepDef(element.type).desc ?? ''">
-                {{ stepDef(element.type).label }}
-              </span>
-              <select
-                :value="element.type"
-                @change="changeType(index, $event.target.value)"
-                class="bg-gray-50 border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:border-blue-400"
-              >
-                <option v-for="(def, key) in STEP_DEFS" :key="key" :value="key">{{ def.label }}</option>
-              </select>
+            <div class="pe__body">
+              <a-space :size="8" align="center" class="pe__head">
+                <a-tag :color="badgeColor(element.type)" :title="stepDef(element.type).desc ?? ''">
+                  {{ stepDef(element.type).label }}
+                </a-tag>
+                <a-select
+                  :model-value="element.type"
+                  size="small"
+                  class="pe__type-select"
+                  @change="val => changeType(index, val)">
+                  <a-option v-for="(def, key) in STEP_DEFS" :key="key" :value="key">{{ def.label }}</a-option>
+                </a-select>
+              </a-space>
+
+              <a-space v-if="stepDef(element.type).fields.length" wrap :size="[12, 8]" align="end" class="pe__fields">
+                <div v-for="field in stepDef(element.type).fields" :key="field.key"
+                  :class="fieldWrapClass(field.type)">
+                  <!-- checkbox -->
+                  <template v-if="field.type === 'checkbox'">
+                    <a-checkbox
+                      :model-value="element[field.key] ?? field.default ?? false"
+                      @change="val => updateField(index, field.key, val)">
+                      {{ field.label }}
+                    </a-checkbox>
+                  </template>
+                  <!-- textarea -->
+                  <template v-else-if="field.type === 'textarea'">
+                    <div class="pe__field-label">{{ field.label }}</div>
+                    <a-textarea
+                      :model-value="element[field.key] ?? ''"
+                      :placeholder="field.placeholder ?? ''"
+                      :auto-size="{ minRows: 3, maxRows: 8 }"
+                      class="mono"
+                      @input="val => updateField(index, field.key, val)" />
+                  </template>
+                  <!-- select -->
+                  <template v-else-if="field.type === 'select'">
+                    <div class="pe__field-label">{{ field.label }}</div>
+                    <a-select
+                      :model-value="element[field.key] ?? field.default ?? field.options[0]"
+                      size="small"
+                      class="pe__field-select"
+                      @change="val => updateField(index, field.key, val)">
+                      <a-option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</a-option>
+                    </a-select>
+                  </template>
+                  <!-- number -->
+                  <template v-else-if="field.type === 'number'">
+                    <div class="pe__field-label">{{ field.label }}</div>
+                    <a-input-number
+                      :model-value="element[field.key] ?? field.default ?? 0"
+                      size="small"
+                      @change="val => updateField(index, field.key, Number(val))" />
+                  </template>
+                  <!-- text (default) -->
+                  <template v-else>
+                    <div class="pe__field-label">{{ field.label }}</div>
+                    <a-input
+                      :model-value="element[field.key] ?? field.default ?? ''"
+                      :placeholder="field.placeholder ?? ''"
+                      size="small"
+                      @input="val => updateField(index, field.key, val)" />
+                  </template>
+                </div>
+              </a-space>
+              <div v-else class="pe__no-field">无参数</div>
             </div>
 
-            <div v-if="stepDef(element.type).fields.length" class="flex flex-wrap items-end gap-x-2 gap-y-1.5">
-              <div v-for="field in stepDef(element.type).fields" :key="field.key"
-                :class="field.type === 'textarea' ? 'w-full'
-                       : field.type === 'checkbox' ? 'flex items-center gap-1.5 flex-shrink-0 pb-0.5'
-                       : field.type === 'number'   ? 'flex-shrink-0 w-28'
-                       : field.type === 'select'   ? 'flex-shrink-0'
-                       : 'flex-1 min-w-0'">
-                <!-- checkbox: inline label + checkbox -->
-                <template v-if="field.type === 'checkbox'">
-                  <input type="checkbox"
-                    :checked="element[field.key] ?? field.default ?? false"
-                    @change="updateField(index, field.key, $event.target.checked)"
-                    class="w-3.5 h-3.5 rounded accent-indigo-500 flex-shrink-0 cursor-pointer"
-                  />
-                  <label class="text-xs text-gray-500 select-none cursor-pointer">{{ field.label }}</label>
-                </template>
-                <!-- other field types: label above input -->
-                <template v-else>
-                  <label class="block text-xs text-gray-500 mb-0.5">{{ field.label }}</label>
-                  <textarea v-if="field.type === 'textarea'"
-                    :value="element[field.key] ?? ''"
-                    @input="updateField(index, field.key, $event.target.value)"
-                    :placeholder="field.placeholder ?? ''"
-                    rows="3"
-                    class="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-blue-400 resize-y"
-                  />
-                  <select v-else-if="field.type === 'select'"
-                    :value="element[field.key] ?? field.default ?? field.options[0]"
-                    @change="updateField(index, field.key, $event.target.value)"
-                    class="bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
-                  >
-                    <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                  <input v-else
-                    :type="field.type"
-                    :value="element[field.key] ?? field.default ?? ''"
-                    @input="updateField(index, field.key, field.type === 'number' ? Number($event.target.value) : $event.target.value)"
-                    :placeholder="field.placeholder ?? ''"
-                    class="w-full bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
-                  />
-                </template>
-              </div>
-            </div>
-            <div v-else class="text-xs text-gray-400 italic">无参数</div>
+            <a-button type="text" status="danger" size="mini" class="pe__remove" @click="removeStep(index)">
+              <template #icon><icon-close /></template>
+            </a-button>
           </div>
-
-          <button @click="removeStep(index)"
-            class="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-500 text-sm mt-0.5 flex-shrink-0 transition-opacity">✕</button>
-        </div>
+        </a-card>
       </template>
     </draggable>
 
-    <div class="flex items-center gap-2">
-      <select v-model="newType" class="bg-gray-50 border border-gray-200 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400">
-        <option v-for="(def, key) in STEP_DEFS" :key="key" :value="key">{{ def.label }}</option>
-      </select>
-      <button @click="addStep"
-        class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded transition-colors">
-        + 添加步骤
-      </button>
-    </div>
+    <a-space :size="8" align="center" class="pe__add">
+      <a-select v-model="newType" size="small" class="pe__add-select">
+        <a-option v-for="(def, key) in STEP_DEFS" :key="key" :value="key">{{ def.label }}</a-option>
+      </a-select>
+      <a-button size="small" @click="addStep">
+        <template #icon><icon-plus /></template>添加步骤
+      </a-button>
+    </a-space>
   </div>
 </template>
 
@@ -306,6 +315,26 @@ function stepDef(type) {
   return STEP_DEFS[type] ?? { label: type, badge: 'bg-gray-100 text-gray-600', fields: [] };
 }
 
+// 将原 Tailwind badge 类映射为 Arco a-tag 颜色
+const HUE_TO_ARCO = {
+  blue: 'blue', orange: 'orange', yellow: 'gold', green: 'green', gray: 'gray',
+  purple: 'purple', indigo: 'arcoblue', pink: 'pinkpurple', cyan: 'cyan',
+  red: 'red', sky: 'arcoblue', teal: 'cyan',
+};
+function badgeColor(type) {
+  const m = (stepDef(type).badge || '').match(/text-(\w+)-/);
+  return HUE_TO_ARCO[m?.[1]] ?? 'gray';
+}
+
+function fieldWrapClass(type) {
+  return {
+    textarea: 'pe__field pe__field--full',
+    checkbox: 'pe__field pe__field--checkbox',
+    number:   'pe__field pe__field--number',
+    select:   'pe__field pe__field--select',
+  }[type] ?? 'pe__field pe__field--text';
+}
+
 function addStep() {
   const def = STEP_DEFS[newType.value];
   const defaults = {};
@@ -332,3 +361,39 @@ function updateField(idx, key, value) {
   localSteps.value[idx] = { ...localSteps.value[idx], [key]: value };
 }
 </script>
+
+<style scoped>
+.pe { display: flex; flex-direction: column; gap: 8px; }
+.pe__ghost { opacity: 0.4; }
+.pe__step { background: var(--bg-card); transition: box-shadow 0.15s; }
+.pe__step:hover { box-shadow: var(--shadow-card); }
+.pe__step-row { display: flex; align-items: flex-start; gap: 8px; }
+.pe__handle {
+  margin-top: 2px;
+  cursor: grab;
+  color: var(--tx-4);
+  user-select: none;
+  font-size: 18px;
+  line-height: 1;
+}
+.pe__handle:hover { color: var(--tx-2); }
+.pe__handle:active { cursor: grabbing; }
+.pe__index { font-size: var(--fs-xs); color: var(--tx-4); margin-top: 5px; width: 16px; text-align: right; flex-shrink: 0; }
+.pe__body { flex: 1; min-width: 0; }
+.pe__head { margin-bottom: 8px; }
+.pe__type-select { width: 130px; }
+.pe__no-field { font-size: var(--fs-xs); color: var(--tx-4); font-style: italic; }
+
+.pe__fields { width: 100%; }
+.pe__field-label { font-size: var(--fs-xs); color: var(--tx-3); margin-bottom: 2px; }
+.pe__field--full     { width: 100%; }
+.pe__field--checkbox { display: flex; align-items: center; padding-bottom: 2px; flex-shrink: 0; }
+.pe__field--number   { flex-shrink: 0; width: 120px; }
+.pe__field--select   { flex-shrink: 0; }
+.pe__field--text     { flex: 1; min-width: 160px; }
+.pe__field-select    { width: 140px; }
+
+.pe__remove { margin-top: 2px; flex-shrink: 0; }
+.pe__add { margin-top: 4px; }
+.pe__add-select { width: 140px; }
+</style>

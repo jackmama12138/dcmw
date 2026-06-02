@@ -1,11 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ============================================================================
+ * DCMW 全局设计层
+ * 统一 Arco Design 组件的视觉规范：卡片 / 表格 / 标签 / 输入 / 滚动条
+ * 配色沿用 Arco 标准色板（--primary 即 arcoblue #165dff）
+ * ==========================================================================*/
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-page:    #f2f3f5;
+  /* —— 语义色板 —— */
+  --bg-page:    #f7f8fa;
   --bg-card:    #ffffff;
   --bg-input:   #f2f3f5;
   --bd-color:   #e5e6eb;
@@ -14,10 +17,29 @@
   --tx-3:       #86909c;
   --tx-4:       #c9cdd4;
   --primary:    #165dff;
+  --primary-hover: #4080ff;
   --success:    #00b42a;
   --warning:    #ff7d00;
   --danger:     #f53f3f;
   --idle-block: #c9cdd4;
+
+  /* —— 设计令牌 —— */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --gap-page: 16px;
+
+  /* —— 字号体系 —— */
+  --fs-xs: 12px;   /* 元信息 / 表头 / 标签 / mini 按钮 */
+  --fs-sm: 13px;   /* 正文 / 表格单元格 / small 按钮 */
+  --fs-md: 14px;   /* 卡片标题 / 区块标题 */
+
+  /* —— 表格密度 —— */
+  --table-cell-py: 9px;
+  --table-cell-px: 12px;
+  --table-row-h: 40px;
 }
 
 html, body, #app {
@@ -25,9 +47,192 @@ html, body, #app {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   background: var(--bg-page);
   color: var(--tx-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .mono {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 12px;
+  letter-spacing: -0.2px;
 }
+
+/* ── 滚动条：细、低调、悬停加深 ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--tx-4);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--tx-3); background-clip: content-box; }
+* { scrollbar-width: thin; scrollbar-color: var(--tx-4) transparent; }
+
+/* ============================================================================
+ * Arco 组件统一
+ * ==========================================================================*/
+
+/* ── 卡片：柔和圆角 + 轻阴影，表头统一 ────────────────────────────────────── */
+.arco-card {
+  border-radius: var(--radius-md);
+  border-color: var(--bd-color);
+}
+.arco-card.arco-card-bordered { box-shadow: var(--shadow-card); }
+
+.arco-card-header {
+  border-bottom: 1px solid var(--bd-color);
+  min-height: 50px;
+  padding: 0 20px;
+}
+.arco-card-header-title { font-weight: 600; font-size: 14px; color: var(--tx-1); }
+
+/* size=small 的列表项卡片不套用大表头规范 */
+.arco-card-size-small > .arco-card-header { min-height: 0; padding: 12px 12px 0; border-bottom: none; }
+
+/* hover 卡片轻微浮起 */
+.arco-card.arco-card-hoverable:hover { box-shadow: var(--shadow-hover); }
+
+/* ── 表格：统一密度，所有 a-table 一个标准（无视 size 属性差异）─────────────── */
+.arco-table-th {
+  background: var(--bg-page) !important;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--tx-3);
+}
+.arco-table-td { font-size: var(--fs-sm); color: var(--tx-2); }
+.arco-table-th .arco-table-cell,
+.arco-table-td .arco-table-cell { padding: var(--table-cell-py) var(--table-cell-px); }
+.arco-table-tr { height: var(--table-row-h); }
+.arco-table-tr:hover .arco-table-td { background: var(--bg-page); }
+.arco-table-border .arco-table-th,
+.arco-table-border .arco-table-td { border-color: var(--bd-color); }
+/* 行内操作按钮（text/mini）紧贴，去多余内边距 */
+.arco-table-td .arco-btn-size-mini { padding: 0 6px; }
+
+/* ── 标签：统一圆角、字号、行高 ───────────────────────────────────────────── */
+.arco-tag {
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  height: 22px;
+  line-height: 20px;
+}
+.arco-tag-size-small { height: 20px; line-height: 18px; }
+
+/* ── 按钮：三档锁死高度/字号/内边距，圆角与字重统一 ───────────────────────── */
+.arco-btn { border-radius: var(--radius-sm); font-weight: 500; }
+.arco-btn-size-mini {
+  font-size: var(--fs-xs);
+  height: 24px;
+  padding: 0 8px;
+  line-height: 22px;
+}
+.arco-btn-size-small {
+  font-size: var(--fs-sm);
+  height: 28px;
+  padding: 0 12px;
+}
+.arco-btn-size-medium {
+  font-size: var(--fs-md);
+  height: 32px;
+}
+/* 文本按钮去内边距，视觉更轻 */
+.arco-btn-text.arco-btn-size-mini { padding: 0 6px; }
+/* 强调按钮（如截图）：主色文字，统一两处使用 */
+.btn-accent.arco-btn { color: var(--primary); }
+.btn-accent.arco-btn:hover { color: var(--primary-hover); }
+
+/* ── 输入 / 选择 / 文本域：浅灰填充，聚焦主色描边 ─────────────────────────── */
+.arco-input-wrapper,
+.arco-select-view,
+.arco-textarea-wrapper,
+.arco-input-number {
+  background-color: var(--bg-input);
+  border-radius: var(--radius-sm);
+}
+.arco-input-wrapper:focus-within,
+.arco-select-view.arco-select-view-focus,
+.arco-textarea-wrapper:focus-within {
+  background-color: var(--bg-card);
+}
+
+/* ── 分割线：更淡 ─────────────────────────────────────────────────────────── */
+.arco-divider-vertical { border-color: var(--bd-color); }
+
+/* ── 菜单：选中态主色块，圆角 ─────────────────────────────────────────────── */
+.arco-menu-light .arco-menu-item.arco-menu-selected {
+  background-color: #e8f0fe;
+  color: var(--primary);
+  font-weight: 500;
+}
+.arco-menu-item { border-radius: var(--radius-sm); }
+
+/* ── 分页：紧凑 ───────────────────────────────────────────────────────────── */
+.arco-pagination-item { border-radius: var(--radius-sm); }
+
+/* ── 空状态：垂直留白适中 ─────────────────────────────────────────────────── */
+.arco-empty { padding: 32px 0; }
+
+/* ── 折叠面板：去边框、悬停浅灰 ───────────────────────────────────────────── */
+.arco-collapse-item-header { background: var(--bg-card); }
+.arco-collapse-item-header:hover { background: var(--bg-page); }
+
+/* ============================================================================
+ * 列表页通用骨架（TaskList / CookieViewer / RanklistViewer / CaptureViewer）
+ * 统一：满高卡片 + 工具栏 + 表格密度 + 分页页脚
+ * ==========================================================================*/
+
+/* 满高卡片：撑满内容区，内部 flex 纵向布局 */
+.list-card {
+  height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+}
+.list-card > .arco-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* 标题区：标题 + 计数标签 */
+.list-card__title { font-size: 14px; font-weight: 600; color: var(--tx-1); }
+.list-card__meta  { font-size: 12px; color: var(--tx-3); }
+
+/* 工具栏：筛选条，统一高度 / 内边距 / 对齐 / 间距 */
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--bd-color);
+  flex-shrink: 0;
+}
+.list-toolbar__spacer { margin-left: auto; }
+
+/* 表格区：占满剩余高度并内部滚动 */
+.list-table { flex: 1; min-height: 0; }
+.list-table .arco-table { height: 100%; }
+
+/* 分页页脚 */
+.list-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-top: 1px solid var(--bd-color);
+  flex-shrink: 0;
+}
+
+/* 单元格语义色（全列表页通用） */
+.cell-id      { color: var(--tx-3); }
+.cell-strong  { color: var(--tx-1); }
+.cell-muted   { color: var(--tx-3); }
+.cell-faint   { color: var(--tx-4); }
+.cell-primary { color: var(--primary); }
+.cell-accent  { color: var(--success); font-weight: 500; }
+.cell-time    { font-size: 12px; color: var(--tx-2); white-space: nowrap; }
+.cell-link    { color: var(--tx-3); text-decoration: none; }
+.cell-link:hover { color: var(--primary); }

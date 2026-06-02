@@ -1,72 +1,53 @@
 <template>
-  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-    <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <h2 class="text-sm font-semibold">拦截响应数据</h2>
-        <span v-if="allItems.length" class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-          {{ filtered.length }} 条
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <button @click="copyAll"
-          class="text-xs text-blue-600 hover:text-blue-600 border border-blue-200 px-2.5 py-1 rounded transition-colors">
-          复制 JSON
-        </button>
-        <button @click="loadAll" :disabled="loading"
-          class="text-xs bg-primary hover:bg-primary-hover text-white disabled:opacity-50 px-3 py-1 rounded font-medium transition-colors">
+  <a-card class="list-card" :bordered="true">
+    <template #title>
+      <a-space :size="12" align="center">
+        <span class="list-card__title">拦截响应数据</span>
+        <a-tag v-if="allItems.length" size="small">{{ filtered.length }} 条</a-tag>
+      </a-space>
+    </template>
+    <template #extra>
+      <a-space :size="8">
+        <a-button size="small" @click="copyAll">复制 JSON</a-button>
+        <a-button type="primary" size="small" :loading="loading" @click="loadAll">
           {{ loading ? '加载中…' : '刷新全部' }}
-        </button>
-      </div>
+        </a-button>
+      </a-space>
+    </template>
+
+    <!-- toolbar -->
+    <div class="list-toolbar">
+      <a-input v-model="filterWorker" placeholder="按 Worker 搜索" allow-clear class="cap__filter-w" />
+      <a-input v-model="filterTaskId" placeholder="按 task_id 过滤" allow-clear class="cap__filter-t" />
+      <a-input v-model="filterUrl" placeholder="按 URL 关键词过滤" allow-clear class="cap__filter-u" />
+      <a-button v-if="filterWorker || filterTaskId || filterUrl" size="small"
+        @click="filterWorker=''; filterTaskId=''; filterUrl=''">清除</a-button>
     </div>
 
-    <!-- filters -->
-    <div class="px-5 py-2.5 border-b border-gray-200 flex items-center gap-3">
-      <input v-model="filterWorker" placeholder="按 Worker 搜索"
-        class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400 w-40" />
-      <input v-model="filterTaskId" placeholder="按 task_id 过滤"
-        class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400 w-44" />
-      <input v-model="filterUrl" placeholder="按 URL 关键词过滤"
-        class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-blue-400 w-40" />
-      <button v-if="filterWorker || filterTaskId || filterUrl"
-        @click="filterWorker=''; filterTaskId=''; filterUrl=''"
-        class="text-xs text-gray-600 hover:text-gray-800 transition-colors">清除</button>
-    </div>
+    <div class="cap__body">
+      <a-empty v-if="!allItems.length && !loading" description="点击「刷新全部」加载数据" />
+      <a-empty v-else-if="!filtered.length && allItems.length" description="无匹配记录" />
 
-    <div class="overflow-y-auto" style="max-height:calc(100vh - 200px)">
-      <div v-if="!allItems.length && !loading" class="text-sm text-gray-600 text-center py-16">
-        点击「刷新全部」加载数据
-      </div>
-      <div v-else-if="!filtered.length && allItems.length" class="text-sm text-gray-600 text-center py-12">
-        无匹配记录
-      </div>
-
-      <div v-for="(c, i) in filtered" :key="i"
-        class="border-b border-gray-200 last:border-0">
-        <!-- row header -->
-        <div class="flex items-center gap-3 px-5 py-2.5 text-xs hover:bg-gray-50/80 transition-colors">
-          <span class="font-mono text-gray-500 flex-shrink-0" :title="c.worker_id">{{ c.worker_id || '—' }}</span>
-          <span class="font-mono text-blue-600 font-medium flex-shrink-0">{{ c.profile }}</span>
-          <span class="text-violet-600 font-mono bg-violet-50 border border-violet-200 px-1.5 py-px rounded flex-shrink-0">
-            {{ c.pattern }}
-          </span>
-          <span class="text-gray-700 font-mono truncate flex-1 min-w-0" :title="c.matched_url">{{ c.matched_url }}</span>
-          <span class="text-gray-700 flex-shrink-0">{{ formatTime(c.timestamp) }}</span>
-          <button @click="toggle(i)"
-            class="text-blue-600 hover:text-blue-600 transition-colors flex-shrink-0">
-            {{ expanded.has(i) ? '收起' : '展开' }}
-          </button>
-        </div>
-        <!-- data -->
-        <div v-if="expanded.has(i)" class="px-5 pb-3">
-          <pre class="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 overflow-x-auto max-h-64 overflow-y-auto">{{ formatData(c.data) }}</pre>
-        </div>
-      </div>
+      <a-collapse v-else v-model:active-key="activeKeys" :bordered="false" accordion>
+        <a-collapse-item v-for="(c, i) in filtered" :key="i">
+          <template #header>
+            <div class="cap__row">
+              <span class="mono cell-id cap__row-worker" :title="c.worker_id">{{ c.worker_id || '—' }}</span>
+              <span class="mono cell-primary cap__row-fixed">{{ c.profile }}</span>
+              <a-tag size="small" color="purple" class="mono">{{ c.pattern }}</a-tag>
+              <span class="mono cap__row-url" :title="c.matched_url">{{ c.matched_url }}</span>
+              <span class="cell-time">{{ formatTime(c.timestamp) }}</span>
+            </div>
+          </template>
+          <pre class="cap__pre">{{ formatData(c.data) }}</pre>
+        </a-collapse-item>
+      </a-collapse>
     </div>
-  </div>
+  </a-card>
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { fetchAllCaptures } from '../api.js';
 
 const props = defineProps({ initialTaskId: { type: String, default: '' } });
@@ -76,7 +57,7 @@ const loading    = ref(false);
 const filterWorker = ref('');
 const filterTaskId = ref('');
 const filterUrl    = ref('');
-const expanded     = reactive(new Set());
+const activeKeys   = ref([]);
 
 const filtered = computed(() => {
   let list = allItems.value;
@@ -97,7 +78,7 @@ async function loadAll() {
   abortCtrl = new AbortController();
   const { signal } = abortCtrl;
   loading.value = true;
-  expanded.clear();
+  activeKeys.value = [];
   try {
     const rows = await fetchAllCaptures().catch(() => []);
     if (!signal.aborted) allItems.value = rows.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -106,7 +87,6 @@ async function loadAll() {
   }
 }
 
-function toggle(i) { expanded.has(i) ? expanded.delete(i) : expanded.add(i); }
 function formatData(data) {
   if (data == null) return '';
   return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
@@ -119,3 +99,37 @@ function formatTime(ts) {
   return new Date(ts).toLocaleString();
 }
 </script>
+
+<style scoped>
+.cap__filter-w { width: 160px; }
+.cap__filter-t { width: 176px; }
+.cap__filter-u { width: 160px; }
+
+.cap__body { flex: 1; min-height: 0; overflow-y: auto; }
+
+.cap__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  width: 100%;
+  min-width: 0;
+}
+.cap__row-worker { flex-shrink: 0; }
+.cap__row-fixed  { font-weight: 500; flex-shrink: 0; }
+.cap__row-url    { color: var(--tx-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cap__pre {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--tx-2);
+  background: var(--bg-input);
+  border: 1px solid var(--bd-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  overflow-x: auto;
+  max-height: 256px;
+  overflow-y: auto;
+  margin: 0;
+}
+</style>
