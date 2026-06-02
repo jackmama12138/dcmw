@@ -168,14 +168,8 @@ onMounted(load);
 .tm__time-input { width: 110px; flex-shrink: 0; }
 .tm__label { font-size: 12px; color: var(--tx-3); white-space: nowrap; flex-shrink: 0; }
 
-/* Pipeline 区块：与上方基本信息用分隔线 + 留白分组 */
-.tm__pipeline { margin-bottom: 20px; padding-top: 16px; border-top: 1px solid var(--bd-color); }
-.tm__pipeline-label {
-  margin-bottom: 10px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--tx-1);
-}
+.tm__pipeline { margin-bottom: 16px; }
+.tm__pipeline-label { margin-bottom: 8px; }
 
 .tm__msg-err { font-size: 12px; color: var(--danger); }
 .tm__msg-ok  { font-size: 12px; color: var(--success); }

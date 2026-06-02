@@ -161,13 +161,14 @@ async function screenshotGroup(nodes) {
   min-width: max-content;
   width: 100%;
 }
-/* 列标题行（最轻层级）：白底 + 浅灰小字标签 */
+/* 列标题行：与全局表头 .arco-table-th 同款 */
 .at__head {
-  height: 34px;
+  height: 36px;
   padding: 0 16px;
   font-size: var(--fs-xs);
+  font-weight: 500;
   color: var(--tx-3);
-  background: var(--bg-card);
+  background: var(--bg-page);
   border-bottom: 1px solid var(--bd-color);
   user-select: none;
   flex-shrink: 0;
@@ -178,11 +179,10 @@ async function screenshotGroup(nodes) {
 .at__head-center { text-align: center; }
 .at__head-right  { text-align: right; padding-right: 4px; }
 
-/* 数据行：白底，hover 浅灰 */
+/* 数据行：对齐全局表格行高 */
 .at__row {
   min-height: var(--table-row-h);
-  padding: 6px 16px;
-  background: var(--bg-card);
+  padding: 4px 16px;
   border-bottom: 1px solid var(--bd-color);
   transition: background 0.15s;
 }

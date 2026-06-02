@@ -232,7 +232,7 @@ html, body, #app {
 }
 
 /* ── PipelineEditor 控件宽度（Arco 组件根节点不带 scoped 属性，须全局按 class 锁定）── */
-.pe__type-select { flex: 0 0 124px; }
+.pe__type-select { flex: 0 0 104px; }
 .pe__field-text     { flex: 0 0 200px; }
 .pe__field-textarea { flex: 0 0 240px; }
 .pe__field-select   { flex: 0 0 110px; }
