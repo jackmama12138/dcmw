@@ -135,34 +135,29 @@ class GatewayClient {
   }
 
   // 启动心跳定时器，定期上报槽位状态、当前页面信息及运行中任务映射
+  async beat() {
+    if (this.destroyed) return;
+    try {
+      const pageProfiles   = await this.pool.getActivePageInfo().catch(() => ({}));
+      const statusProfiles = this.getStatus();
+      const profiles = {};
+      const allKeys = new Set([...Object.keys(pageProfiles), ...Object.keys(statusProfiles)]);
+      for (const k of allKeys) {
+        profiles[k] = { ...(pageProfiles[k] ?? {}), ...(statusProfiles[k] ?? {}) };
+      }
+      this.send({ type: 'heartbeat', worker_id: this.workerId, slots: this.pool.stats(), profiles });
+    } catch { /* 忽略 */ }
+  }
+
   _startHeartbeat() {
     this._stopHeartbeat();
     let running = false;
-    const beat = async () => {
+    const tick = async () => {
       if (running || this.destroyed) return;
       running = true;
-      try {
-        const pageProfiles  = await this.pool.getActivePageInfo().catch(() => ({}));
-        const statusProfiles = this.getStatus(); // { Profile1: { task_id, target_url, state } }
-
-        // 合并页面信息与任务状态，gateway 重启后可凭此恢复映射
-        const profiles = {};
-        const allKeys = new Set([...Object.keys(pageProfiles), ...Object.keys(statusProfiles)]);
-        for (const k of allKeys) {
-          profiles[k] = { ...(pageProfiles[k] ?? {}), ...(statusProfiles[k] ?? {}) };
-        }
-
-        this.send({
-          type     : 'heartbeat',
-          worker_id: this.workerId,
-          slots    : this.pool.stats(),
-          profiles,
-        });
-      } finally {
-        running = false;
-      }
+      try { await this.beat(); } finally { running = false; }
     };
-    this.heartbeatTimer = setInterval(beat, HEARTBEAT_MS);
+    this.heartbeatTimer = setInterval(tick, HEARTBEAT_MS);
   }
 
   // 停止心跳定时器

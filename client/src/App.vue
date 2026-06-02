@@ -169,11 +169,22 @@ function connectWs() {
   ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
-    if (msg.type === 'workers_update') workers.value = msg.workers;
+    if (msg.type === 'workers_update') {
+      workers.value = msg.workers;
+      const busyKeys = new Set(msg.workers.flatMap(w =>
+        w.profiles.filter(p => p.state === 'busy').map(p => `${w.workerId}:${p.profileName}`)
+      ));
+      for (const key of Object.keys(progressMap.value)) {
+        if (!busyKeys.has(key)) delete progressMap.value[key];
+      }
+    }
     if (msg.type === 'worker_patch') {
       const idx = workers.value.findIndex(w => w.workerId === msg.worker.workerId);
       if (idx !== -1) workers.value[idx] = msg.worker;
       else workers.value = [...workers.value, msg.worker];
+      msg.worker.profiles.filter(p => p.state !== 'busy').forEach(p => {
+        delete progressMap.value[`${msg.worker.workerId}:${p.profileName}`];
+      });
     }
     if (msg.type === 'tasks_update')   tasks.value   = msg.tasks;
     if (msg.type === 'task_progress')  handleProgress(msg);

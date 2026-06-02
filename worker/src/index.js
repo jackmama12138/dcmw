@@ -215,7 +215,10 @@ async function handleTask(task) {
   const key = taskKey(task_id, profile);
   const ctrl = runTask(context, task, {
     pool,
-    onProgress: (data) => client.send(data),
+    onProgress: (data) => {
+      client.send(data);
+      if (data.action === 'dwell') client.beat();
+    },
     onComplete: async (result) => {
       runningTasks.delete(key);
       // 先 release 再上报：确保 slot 真正空闲后 gateway 才会重新调度
