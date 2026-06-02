@@ -431,46 +431,50 @@ onMounted(async () => {
 .db__empty   { padding: 16px 0; }
 .db__scroll  { flex: 1; min-height: 0; overflow-y: auto; }
 
-/* 列标题行：与全局 .arco-table-th 表头同款（浅灰底 / 12px / 弱化色）*/
+/* 列标题行（最轻层级）：白底 + 浅灰小字标签，仅作列说明 */
 .db__col-head {
   padding: 0 16px;
-  height: 36px;
+  height: 34px;
   align-items: center;
   font-size: var(--fs-xs);
-  font-weight: 500;
   color: var(--tx-3);
   border-bottom: 1px solid var(--bd-color);
   user-select: none;
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--bg-page);
+  background: var(--bg-card);
 }
 .db__center { text-align: center; }
 .db__right  { text-align: right; }
 
+/* Worker 分组头（中间层级）：灰底分组带 + 左侧主色强调条 + 加粗深色 ID */
 .db__worker-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 10px;
-  background: var(--bg-page);
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  background: #eef1f6;
   border-bottom: 1px solid var(--bd-color);
+  border-left: 3px solid var(--primary);
   position: sticky;
-  top: 36px;
+  top: 34px;
   z-index: 9;
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s;
 }
-.db__caret { font-size: var(--fs-xs); color: var(--tx-4); width: 10px; flex-shrink: 0; }
-.db__worker-id { font-size: var(--fs-sm); font-weight: 600; color: var(--tx-1); flex-shrink: 0; }
+.db__worker-head:hover { background: #e6eaf2; }
+.db__caret { font-size: var(--fs-xs); color: var(--tx-3); width: 10px; flex-shrink: 0; }
+.db__worker-id { font-size: var(--fs-sm); font-weight: 700; color: var(--tx-1); flex-shrink: 0; letter-spacing: 0.3px; }
 .db__spacer { flex: 1; }
 
-/* 数据行：与全局表格行高 / 字号对齐 */
+/* Profile 数据行（最底层级）：白底，hover 浅灰，左侧缩进与强调条对齐 */
 .db__row {
   min-height: var(--table-row-h);
-  padding: 4px 10px;
+  padding: 4px 10px 4px 13px;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--bd-color);
   transition: background 0.15s;
 }
