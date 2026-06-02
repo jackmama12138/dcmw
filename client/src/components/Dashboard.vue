@@ -497,9 +497,10 @@ onMounted(async () => {
   border-radius: 11px;
 }
 .db__runcount b { font-size: var(--fs-sm); font-weight: 700; }
+/* 运行中＝活动状态维度，用主色蓝，避开节点状态的绿(上榜)/红(未上榜)/橙(未登陆) */
 .db__runcount--active {
   color: #fff;
-  background: var(--success);
+  background: var(--primary);
 }
 .db__runcount-dot {
   width: 6px; height: 6px; border-radius: 50%;
