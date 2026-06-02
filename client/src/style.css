@@ -136,8 +136,16 @@ html, body, #app {
   font-size: var(--fs-md);
   height: 32px;
 }
-/* 文本按钮去内边距，视觉更轻 */
-.arco-btn-text.arco-btn-size-mini { padding: 0 6px; }
+/* 文本按钮：默认中性灰，hover 才显主色 + 浅底，组成安静的工具栏（危险操作保持红色）*/
+.arco-btn-text.arco-btn-size-mini { padding: 0 7px; }
+.arco-btn-text:not(.arco-btn-status-danger):not(.arco-btn-status-success):not(.arco-btn-status-warning) {
+  color: var(--tx-2);
+}
+.arco-btn-text:not(.arco-btn-status-danger):not(.arco-btn-status-success):not(.arco-btn-status-warning):hover {
+  color: var(--primary);
+  background: var(--bg-input);
+}
+.arco-btn-text.arco-btn-status-danger:hover { background: rgba(245, 63, 63, 0.1); }
 
 /* ── 输入 / 选择 / 文本域：浅灰填充，聚焦主色描边 ─────────────────────────── */
 .arco-input-wrapper,

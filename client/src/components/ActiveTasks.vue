@@ -37,14 +37,15 @@
         <span class="mono at__count">{{ group.nodes.length }}</span>
 
         <!-- 操作按钮 -->
-        <a-space :size="4" class="at__actions">
-          <a-button size="mini" type="dashed" @click="adjustUrl(group.url, 1800)">+30m</a-button>
-          <a-button size="mini" type="outline" status="success" @click="screenshotGroup(group.nodes)">截图</a-button>
-          <a-button size="mini" type="outline" @click="checkRanklistUrl(group.nodes)">获取榜单</a-button>
-          <a-button size="mini" type="outline" status="danger" @click="stopGroupUnlogged(group.nodes)">停未登陆</a-button>
-          <a-button size="mini" type="outline" status="warning" @click="stopGroupUnranked(group.nodes)">停未上榜</a-button>
-          <a-button size="mini" type="dashed" @click="reloadUnrankedUrl(group.nodes)">刷新未上榜</a-button>
-          <a-button size="mini" type="primary" status="danger" @click="stopUrl(group.url)">全停</a-button>
+        <a-space :size="2" class="at__actions">
+          <a-button size="mini" type="text" @click="adjustUrl(group.url, 1800)">+30m</a-button>
+          <a-button size="mini" type="text" @click="screenshotGroup(group.nodes)">截图</a-button>
+          <a-button size="mini" type="text" @click="checkRanklistUrl(group.nodes)">获取榜单</a-button>
+          <a-button size="mini" type="text" @click="stopGroupUnlogged(group.nodes)">停未登陆</a-button>
+          <a-button size="mini" type="text" @click="stopGroupUnranked(group.nodes)">停未上榜</a-button>
+          <a-button size="mini" type="text" @click="reloadUnrankedUrl(group.nodes)">刷新未上榜</a-button>
+          <a-divider direction="vertical" :margin="4" />
+          <a-button size="mini" type="text" status="danger" @click="stopUrl(group.url)">全停</a-button>
         </a-space>
       </div>
     </div>
