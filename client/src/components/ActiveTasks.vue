@@ -71,7 +71,7 @@ const urlGroups = computed(() => {
         if (!map.has(p.targetUrl)) map.set(p.targetUrl, []);
         map.get(p.targetUrl).push({
           workerId: w.workerId, profileName: p.profileName,
-          isLoggedIn: p.isLoggedIn, rank: p.rank, taskId: p.taskId,
+          isLoggedIn: p.isLoggedIn, rank: p.rank, taskId: p.taskId, currentAction: p.currentAction,
         });
       }
     }
@@ -93,7 +93,9 @@ async function adjustUrl(url, delta) {
   try { await adjustTime(url, delta); } catch (err) { toast(err.message, 'warn'); }
 }
 function checkRanklistUrl(nodes) {
-  const targets = nodes.filter(n => (n.rank ?? 0) <= 0).map(n => ({ worker_id: n.workerId, profile: n.profileName }));
+  const dwell = nodes.filter(n => n.currentAction === 'dwell');
+  if (!dwell.length) { toast('暂无节点处于挂机阶段', 'warn'); return; }
+  const targets = dwell.filter(n => (n.rank ?? 0) <= 0).map(n => ({ worker_id: n.workerId, profile: n.profileName }));
   if (!targets.length) { toast('无需检查（均已上榜）', 'warn'); return; }
   wsSend({ type: 'ranklist_check', targets });
   toast(`已向 ${targets.length} 个节点发送榜单检查`);
@@ -111,7 +113,9 @@ function stopGroupUnranked(nodes) {
   toast(`已停止 ${t.length} 个未上榜节点`);
 }
 function reloadUnrankedUrl(nodes) {
-  const t = nodes.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0));
+  const dwell = nodes.filter(n => n.currentAction === 'dwell');
+  if (!dwell.length) { toast('暂无节点处于挂机阶段', 'warn'); return; }
+  const t = dwell.filter(n => n.isLoggedIn === true && (n.rank === null || n.rank <= 0));
   if (!t.length) { toast('无需刷新的节点', 'warn'); return; }
   for (const n of t) wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
   toast(`已刷新 ${t.length} 个未上榜节点`);
