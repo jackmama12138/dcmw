@@ -44,7 +44,7 @@
       </template>
       <template #columns>
         <a-table-column title="Worker" :width="120" ellipsis tooltip>
-          <template #cell="{ record }"><span class="mono cell-id">{{ record.worker_id || '—' }}</span></template>
+          <template #cell="{ record }"><span class="mono cell-faint">{{ record.worker_id || '—' }}</span></template>
         </a-table-column>
         <a-table-column title="Profile" :width="100">
           <template #cell="{ record }"><span class="mono cell-primary">{{ record.profile }}</span></template>
@@ -53,13 +53,13 @@
           <template #cell="{ record }"><span class="mono cell-accent">{{ record.user_unique_id || '—' }}</span></template>
         </a-table-column>
         <a-table-column title="UA" :width="160" ellipsis tooltip>
-          <template #cell="{ record }"><span class="mono cell-id">{{ record.ua || '—' }}</span></template>
+          <template #cell="{ record }"><span class="mono cell-faint">{{ record.ua || '—' }}</span></template>
         </a-table-column>
         <a-table-column title="Cookie" ellipsis tooltip>
-          <template #cell="{ record }"><span class="mono cv__cookie">{{ record.cookie || '—' }}</span></template>
+          <template #cell="{ record }"><span class="mono cell-strong cv__cookie">{{ record.cookie || '—' }}</span></template>
         </a-table-column>
         <a-table-column title="时间" :width="170">
-          <template #cell="{ record }"><span class="cell-time">{{ formatTime(record.timestamp) }}</span></template>
+          <template #cell="{ record }"><span class="cell-muted">{{ formatTime(record.timestamp) }}</span></template>
         </a-table-column>
         <a-table-column title="操作" :width="70" align="right">
           <template #cell="{ record }"><a-button type="text" size="mini" @click="copyItem(record)">复制</a-button></template>
@@ -162,5 +162,5 @@ function formatTime(ts) {
 .cv__filter-w   { width: 160px; }
 .cv__filter-uid { width: 200px; }
 .cv__filter-p   { width: 150px; }
-.cv__cookie     { color: var(--tx-2); user-select: all; }
+.cv__cookie     { user-select: all; }
 </style>

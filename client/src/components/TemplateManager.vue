@@ -1,67 +1,56 @@
 <template>
-  <a-row :gutter="16">
-    <!-- template list -->
-    <a-col :xs="24" :lg="8">
-      <a-card :bordered="true" :body-style="{ padding: '16px' }">
-        <template #title><span class="tm__title">任务类型</span></template>
-        <template #extra>
-          <a-button type="primary" size="small" @click="startNew">
-            <template #icon><icon-plus /></template>新建
-          </a-button>
-        </template>
+  <div class="tm">
+    <!-- 任务类型列表：顶部横向排列 -->
+    <a-card :bordered="true" :body-style="{ padding: '12px 16px' }">
+      <template #title><span class="tm__title">任务类型</span></template>
+      <template #extra>
+        <a-button type="primary" size="small" @click="startNew">
+          <template #icon><icon-plus /></template>新建
+        </a-button>
+      </template>
 
-        <a-empty v-if="!templates.length" description="暂无任务类型" />
+      <a-empty v-if="!templates.length" description="暂无任务类型" />
 
-        <a-space v-else direction="vertical" :size="8" fill>
-          <a-card
-            v-for="tpl in templates" :key="tpl.name"
-            hoverable size="small"
-            :class="['tm__item', editing?.name === tpl.name ? 'tm__item--active' : '']"
-            :body-style="{ padding: '12px' }"
-            @click="editTemplate(tpl)">
-            <div class="tm__item-head">
-              <span class="mono tm__item-name">{{ tpl.name }}</span>
-              <a-popconfirm content="确认删除该任务类型？" type="warning" @ok="doDelete(tpl.name)">
-                <a-button type="text" status="danger" size="mini" @click.stop>删除</a-button>
-              </a-popconfirm>
-            </div>
-            <div v-if="tpl.description" class="tm__item-desc">{{ tpl.description }}</div>
-            <div class="tm__item-meta">{{ tpl.pipeline?.length ?? 0 }} 步 · task_time {{ tpl.task_time ?? '—' }}s</div>
-          </a-card>
-        </a-space>
-      </a-card>
-    </a-col>
-
-    <!-- editor -->
-    <a-col :xs="24" :lg="16">
-      <a-card :bordered="true" :body-style="{ padding: '16px' }">
-        <template v-if="editing">
-          <a-space :size="12" align="center" class="tm__editor-head" fill>
-            <a-input v-model="editing.name" :disabled="!isNew" placeholder="task_type 名称 (如 AFK)" class="mono tm__name-input" />
-            <a-input v-model="editing.description" placeholder="描述（可选）" class="tm__desc-input" />
-            <a-space :size="4" align="center">
-              <span class="tm__label">默认 task_time(s)</span>
-              <a-input-number v-model="editing.task_time" :hide-button="false" class="tm__time-input" />
-            </a-space>
-          </a-space>
-
-          <div class="tm__pipeline">
-            <div class="tm__label tm__pipeline-label">Pipeline 编排（可拖拽排序）</div>
-            <PipelineEditor v-model="editing.pipeline" />
-          </div>
-
-          <a-space :size="12" align="center">
-            <a-button type="primary" :loading="saving" @click="save">{{ saving ? '保存中...' : '保存' }}</a-button>
-            <a-button @click="editing = null">取消</a-button>
-            <span v-if="saveMsg" :class="saveError ? 'tm__msg-err' : 'tm__msg-ok'">{{ saveMsg }}</span>
-          </a-space>
-        </template>
-        <div v-else class="tm__empty">
-          <a-empty description="选择左侧任务类型编辑，或点击「新建」" />
+      <div v-else class="tm__list">
+        <div
+          v-for="tpl in templates" :key="tpl.name"
+          :class="['tm__item', editing?.name === tpl.name ? 'tm__item--active' : '']"
+          :title="tpl.description || `${tpl.pipeline?.length ?? 0} 步 · task_time ${tpl.task_time ?? '—'}s`"
+          @click="editTemplate(tpl)">
+          <span class="mono tm__item-name">{{ tpl.name }}</span>
+          <a-popconfirm content="确认删除该任务类型？" type="warning" @ok="doDelete(tpl.name)">
+            <icon-close class="tm__item-del" @click.stop />
+          </a-popconfirm>
         </div>
-      </a-card>
-    </a-col>
-  </a-row>
+      </div>
+    </a-card>
+
+    <!-- 编排器：底部占满整宽 -->
+    <a-card :bordered="true" :body-style="{ padding: '16px' }">
+      <template v-if="editing">
+        <div class="tm__editor-head">
+          <a-input v-model="editing.name" :disabled="!isNew" placeholder="task_type 名称 (如 AFK)" class="mono tm__name-input" />
+          <a-input v-model="editing.description" placeholder="描述（可选）" class="tm__desc-input" />
+          <span class="tm__label">默认 task_time(s)</span>
+          <a-input-number v-model="editing.task_time" class="tm__time-input" />
+        </div>
+
+        <div class="tm__pipeline">
+          <div class="tm__label tm__pipeline-label">Pipeline 编排（可拖拽排序）</div>
+          <PipelineEditor v-model="editing.pipeline" />
+        </div>
+
+        <a-space :size="12" align="center">
+          <a-button type="primary" :loading="saving" @click="save">{{ saving ? '保存中...' : '保存' }}</a-button>
+          <a-button @click="editing = null">取消</a-button>
+          <span v-if="saveMsg" :class="saveError ? 'tm__msg-err' : 'tm__msg-ok'">{{ saveMsg }}</span>
+        </a-space>
+      </template>
+      <div v-else class="tm__empty">
+        <a-empty description="选择上方任务类型编辑，或点击「新建」" />
+      </div>
+    </a-card>
+  </div>
 </template>
 
 <script setup>
@@ -124,20 +113,54 @@ onMounted(load);
 </script>
 
 <style scoped>
+.tm { display: flex; flex-direction: column; gap: 16px; }
 .tm__title { font-size: 14px; font-weight: 600; }
 
-.tm__item { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+/* 任务类型：紧凑标签，仅显示名称，自动换行 */
+.tm__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tm__item {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--bd-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tm__item:hover { border-color: var(--primary); }
 .tm__item--active { border-color: var(--primary); background: #e8f0fe; }
-.tm__item-head { display: flex; align-items: center; justify-content: space-between; }
-.tm__item-name { font-size: 13px; color: var(--primary); }
-.tm__item-desc { font-size: 12px; color: var(--tx-3); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tm__item-meta { font-size: 12px; color: var(--tx-2); margin-top: 4px; }
+.tm__item-name { font-size: 13px; color: var(--primary); white-space: nowrap; }
+/* 删除叉：与文字拉开间距 + 独立点击区，默认半隐藏，hover 才明显，避免误触 */
+.tm__item-del {
+  margin-left: 14px;
+  padding: 4px;
+  font-size: 12px;
+  color: var(--tx-4);
+  opacity: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, opacity 0.15s, background 0.15s;
+}
+.tm__item:hover .tm__item-del { opacity: 1; }
+.tm__item-del:hover { color: var(--danger); background: rgba(245, 63, 63, 0.1); }
 
-.tm__editor-head { margin-bottom: 16px; }
-.tm__name-input { width: 160px; flex-shrink: 0; }
-.tm__desc-input { flex: 1; }
-.tm__time-input { width: 96px; }
-.tm__label { font-size: 12px; color: var(--tx-3); white-space: nowrap; }
+/* 编辑头部：名称 / 描述 / task_time 一行 */
+.tm__editor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.tm__name-input { width: 180px; flex-shrink: 0; }
+.tm__desc-input { flex: 1; min-width: 0; }
+.tm__time-input { width: 110px; flex-shrink: 0; }
+.tm__label { font-size: 12px; color: var(--tx-3); white-space: nowrap; flex-shrink: 0; }
 
 .tm__pipeline { margin-bottom: 16px; }
 .tm__pipeline-label { margin-bottom: 8px; }

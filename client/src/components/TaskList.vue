@@ -43,9 +43,15 @@
           </template>
         </a-table-column>
 
-        <a-table-column title="进度" :width="160" align="right">
+        <a-table-column title="进度" :width="200" align="right">
           <template #cell="{ record }">
             <div class="tl__progress">
+              <a-progress
+                :percent="progressPct(record) / 100"
+                :show-text="false"
+                size="mini"
+                class="tl__progress-bar"
+                :status="record.status === 'done' ? 'success' : 'normal'" />
               <div class="tl__progress-nums">
                 <span class="cell-accent">{{ record.completed }}</span>
                 <span class="cell-muted">/</span>
@@ -53,11 +59,6 @@
                 <span v-if="record.running > 0" class="tl__t-amber">+{{ record.running }}</span>
                 <span v-if="record.failed > 0" class="tl__t-red">✕{{ record.failed }}</span>
               </div>
-              <a-progress
-                :percent="progressPct(record) / 100"
-                :show-text="false"
-                size="mini"
-                :status="record.status === 'done' ? 'success' : 'normal'" />
             </div>
           </template>
         </a-table-column>
@@ -124,14 +125,21 @@ function progressPct(t) {
 </script>
 
 <style scoped>
-.tl__progress-nums {
+.tl__progress {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+}
+.tl__progress-bar { flex: 1; min-width: 40px; max-width: 90px; }
+.tl__progress-nums {
+  display: flex;
+  align-items: center;
   gap: 4px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  margin-bottom: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tl__t-amber { color: var(--warning); }
 .tl__t-red   { color: var(--danger); }

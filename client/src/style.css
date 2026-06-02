@@ -138,9 +138,6 @@ html, body, #app {
 }
 /* 文本按钮去内边距，视觉更轻 */
 .arco-btn-text.arco-btn-size-mini { padding: 0 6px; }
-/* 强调按钮（如截图）：主色文字，统一两处使用 */
-.btn-accent.arco-btn { color: var(--primary); }
-.btn-accent.arco-btn:hover { color: var(--primary-hover); }
 
 /* ── 输入 / 选择 / 文本域：浅灰填充，聚焦主色描边 ─────────────────────────── */
 .arco-input-wrapper,
@@ -225,6 +222,14 @@ html, body, #app {
   border-top: 1px solid var(--bd-color);
   flex-shrink: 0;
 }
+
+/* ── PipelineEditor 控件宽度（Arco 组件根节点不带 scoped 属性，须全局按 class 锁定）── */
+.pe__type-select { flex: 0 0 104px; }
+.pe__field-text     { flex: 0 0 200px; }
+.pe__field-textarea { flex: 0 0 240px; }
+.pe__field-select   { flex: 0 0 110px; }
+.pe__field-number   { flex: 0 0 96px; }
+.pe__add-select  { flex: 0 0 160px; }
 
 /* 单元格语义色（全列表页通用） */
 .cell-id      { color: var(--tx-3); }

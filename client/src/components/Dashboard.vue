@@ -49,8 +49,8 @@
                 <a-button size="mini" type="outline" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
                 <a-button size="mini" type="outline" status="danger" @click.stop="stopUnloggedWorker(w)">停未登陆</a-button>
                 <a-button size="mini" type="outline" status="warning" @click.stop="stopUnrankedWorker(w)">停未上榜</a-button>
-                <a-button size="mini" @click.stop="reloadDwell(w)">刷新未上榜</a-button>
-                <a-button size="mini" status="danger" @click.stop="stopWorker(w.workerId)">全停</a-button>
+                <a-button size="mini" type="dashed" @click.stop="reloadDwell(w)">刷新未上榜</a-button>
+                <a-button size="mini" type="primary" status="danger" @click.stop="stopWorker(w.workerId)">全停</a-button>
               </a-space>
             </div>
 
@@ -101,12 +101,12 @@
                     <a-button size="mini" type="outline"
                       :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
                       @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])">榜单</a-button>
-                    <a-button size="mini"
+                    <a-button size="mini" type="dashed"
                       :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
                       @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])">刷新</a-button>
-                    <a-button v-if="p.state === 'busy'" size="mini" class="btn-accent"
+                    <a-button v-if="p.state === 'busy'" size="mini" type="outline" status="success"
                       @click="takeScreenshot(w.workerId, p.profileName, p.taskId)">截图</a-button>
-                    <a-button v-if="p.state === 'busy'" size="mini" status="danger"
+                    <a-button v-if="p.state === 'busy'" size="mini" type="primary" status="danger"
                       @click="stopNode(w.workerId, p.profileName)">停止</a-button>
                   </a-space>
                 </a-col>
