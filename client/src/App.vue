@@ -202,6 +202,7 @@ function handleProgress(msg) {
 function handleScreenshotDone(msg) {
   screenshotNotifications.value.unshift(msg);
   if (screenshotNotifications.value.length > 50) screenshotNotifications.value.length = 50;
+  activeTab.value = 'screenshots';
 }
 
 provide('wsSend', wsSend);

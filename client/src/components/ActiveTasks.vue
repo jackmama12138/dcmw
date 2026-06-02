@@ -60,7 +60,6 @@ import { adjustTime, triggerScreenshot } from '../api.js';
 
 const props  = defineProps({ workers: { type: Array, default: () => [] } });
 const wsSend = inject('wsSend', () => {});
-const setTab = inject('setTab', () => {});
 const toast  = inject('toast', () => {});
 
 const urlGroups = computed(() => {
@@ -122,7 +121,6 @@ function reloadUnrankedUrl(nodes) {
 }
 async function screenshotGroup(nodes) {
   await Promise.allSettled(nodes.map(n => triggerScreenshot({ worker_id: n.workerId, profile: n.profileName, task_id: n.taskId })));
-  toast(`已触发 ${nodes.length} 个节点截图`);
-  setTab('screenshots');
+  toast(`已触发 ${nodes.length} 个节点截图，完成后自动跳转`);
 }
 </script>

@@ -351,7 +351,7 @@ function stopNode(workerId, profile) {
 }
 async function takeScreenshot(workerId, profile, taskId) {
   await triggerScreenshot({ worker_id: workerId, profile, task_id: taskId });
-  setTab('screenshots');
+  toast('截图已发送，完成后自动跳转');
 }
 
 function stopGroupUnlogged(nodes) {
