@@ -1,0 +1,168 @@
+- generic [active] [ref=e1]:
+  - button "开启读屏标签" [ref=e2]
+  - generic: 读屏标签已关闭
+  - main [ref=e6]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e13]:
+          - generic [ref=e14]:
+            - img [ref=e18] [cursor=pointer]
+            - generic [ref=e20] [cursor=pointer]:
+              - generic [ref=e21]:
+                - link:
+                  - /url: //www.douyin.com/user/MS4wLjABAAAA8tjs1nXSd5pJoSicl_-CPx5sJwqN_4lx_TaFRNB_EDL0XoK2-WMtPk_Cpm25MDrJ
+                  - listitem
+                - generic:
+                  - link "完美初心":
+                    - /url: //www.douyin.com/user/MS4wLjABAAAA8tjs1nXSd5pJoSicl_-CPx5sJwqN_4lx_TaFRNB_EDL0XoK2-WMtPk_Cpm25MDrJ
+                  - generic:
+                    - generic: 42本场点赞
+              - button "关注 G" [ref=e22]:
+                - text: 关注
+                - generic [ref=e23]: G
+              - img [ref=e25]
+          - generic [ref=e28]:
+            - generic [ref=e29] [cursor=pointer]:
+              - img [ref=e30]
+              - generic [ref=e31]:
+                - generic [ref=e33]:
+                  - generic [ref=e34]: 小时榜
+                  - generic [ref=e35]: 100+
+                - generic [ref=e37]:
+                  - generic [ref=e38]: 人气榜
+                  - generic [ref=e39]: 100+
+                - generic [ref=e41]:
+                  - generic [ref=e42]: 小时榜
+                  - generic [ref=e43]: 100+
+            - iframe [ref=e47] [cursor=pointer]:
+              
+        - generic [ref=e52] [cursor=pointer]:
+          - generic [ref=e54]:
+            - generic:
+              - generic:
+                - generic:
+                  - img [ref=e56]
+                  - img [ref=e62]
+                - generic:
+                  - img [ref=e67]
+                  - img [ref=e72]
+                  - img [ref=e78]
+                  - img [ref=e82]
+                  - img [ref=e88]
+                  - img [ref=e95]
+                  - img [ref=e102]
+                  - img [ref=e107]
+                  - generic [ref=e115]: 自动
+          - generic:
+            - generic:
+              - iframe
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - generic [ref=e123]:
+              - generic [ref=e125] [cursor=pointer]:
+                - img [ref=e127]
+                - generic [ref=e128]:
+                  - generic [ref=e130]: 1钻
+                  - generic [ref=e131]: 小心心
+                  - generic [ref=e133]: 1钻
+              - generic [ref=e135] [cursor=pointer]:
+                - img [ref=e137]
+                - generic [ref=e138]:
+                  - generic [ref=e140]: 1钻
+                  - generic [ref=e141]: 抖音
+                  - generic [ref=e143]: 1钻
+              - generic [ref=e145] [cursor=pointer]:
+                - img [ref=e148]
+                - generic [ref=e149]:
+                  - generic [ref=e151]: 1钻
+                  - generic [ref=e152]: 人气票
+                  - generic [ref=e154]: 1钻
+              - generic [ref=e156] [cursor=pointer]:
+                - img [ref=e158]
+                - generic [ref=e159]:
+                  - generic [ref=e161]: 99钻
+                  - generic [ref=e162]: 妙笔生花
+                  - generic [ref=e164]: 99钻
+              - generic [ref=e166] [cursor=pointer]:
+                - img [ref=e168]
+                - generic [ref=e169]:
+                  - generic [ref=e171]: 2钻
+                  - generic [ref=e172]: 大啤酒
+                  - generic [ref=e174]: 2钻
+              - generic [ref=e176] [cursor=pointer]:
+                - img [ref=e178]
+                - generic [ref=e179]:
+                  - generic [ref=e181]: 9钻
+                  - generic [ref=e182]: 棒棒糖
+                  - generic [ref=e184]: 9钻
+              - generic [ref=e186] [cursor=pointer]:
+                - img [ref=e188]
+                - generic [ref=e189]:
+                  - generic [ref=e191]: 299钻
+                  - generic [ref=e192]: 青绿兔兔
+                  - generic [ref=e194]: 299钻
+              - generic [ref=e196] [cursor=pointer]:
+                - img [ref=e198]
+                - generic [ref=e199]:
+                  - generic [ref=e201]: 1钻
+                  - generic [ref=e202]: 青绿画卷
+                  - generic [ref=e204]: 1钻
+              - generic [ref=e206] [cursor=pointer]:
+                - img [ref=e208]
+                - generic [ref=e209]:
+                  - generic [ref=e211]: 99钻
+                  - generic [ref=e212]: Thuglife
+                  - generic [ref=e214]: 99钻
+              - generic [ref=e216] [cursor=pointer]:
+                - img [ref=e218]
+                - generic [ref=e219]:
+                  - generic [ref=e221]: 699钻
+                  - generic [ref=e222]: 青山灵鹿
+                  - generic [ref=e224]: 699钻
+              - generic [ref=e226] [cursor=pointer]:
+                - img [ref=e228]
+                - generic [ref=e229]:
+                  - generic [ref=e231]: 10钻
+                  - generic [ref=e232]: 鲜花
+                  - generic [ref=e234]: 10钻
+              - generic [ref=e236] [cursor=pointer]:
+                - img [ref=e238]
+                - generic [ref=e239]:
+                  - generic [ref=e241]: 1888钻
+                  - generic [ref=e242]: 一眼万年
+                  - generic [ref=e244]: 1888钻
+              - generic [ref=e246] [cursor=pointer]:
+                - img [ref=e248]
+                - generic [ref=e249]:
+                  - generic [ref=e251]: 1钻
+                  - generic [ref=e252]: 玫瑰
+                  - generic [ref=e254]: 1钻
+              - generic [ref=e256] [cursor=pointer]:
+                - img [ref=e258]
+                - generic [ref=e259]:
+                  - generic [ref=e261]: 2钻
+                  - generic [ref=e262]: 你最好看
+                  - generic [ref=e264]: 2钻
+            - generic [ref=e267] [cursor=pointer]:
+              - generic [ref=e268]: 更多
+              - img [ref=e269]
+          - generic [ref=e274] [cursor=pointer]:
+            - generic [ref=e275]: 充值
+            - img [ref=e276]
+      - generic [ref=e279]:
+        - img [ref=e281] [cursor=pointer]
+        - generic [ref=e284]:
+          - generic [ref=e285]:
+            - generic [ref=e287]: 在线观众
+            - generic [ref=e288]: ·
+            - generic [ref=e289]: "1"
+          - generic [ref=e293]:
+            - paragraph [ref=e295]: 全部
+            - paragraph [ref=e297]: 1000贡献用户(0)
+            - paragraph [ref=e299]: 高等级用户
+          - generic [ref=e305] [cursor=pointer]:
+            - generic [ref=e306]: "-"
+            - img [ref=e309]
+            - generic [ref=e311]:
+              - generic [ref=e313]: 平凡普通
+              - img [ref=e315]
