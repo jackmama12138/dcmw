@@ -17,8 +17,12 @@ class GatewayClient {
     this.onTask = onTask;
     this.onStop = onStop ?? (() => {});
     this.onUpdateTime = onUpdateTime ?? (() => {});
-    this.onLoadPlugin   = (msg) => { actionsLoader.loadPlugin(msg.name, msg.code);   this._sendSchemasUpdate(); };
-    this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name);           this._sendSchemasUpdate(); };
+    this.onLoadPlugin = (msg) => {
+      const ok = actionsLoader.loadPlugin(msg.name, msg.code);
+      this.send({ type: 'plugin_ack', name: msg.name, ok: !!ok, reason: ok ? undefined : 'load_failed' });
+      this._sendSchemasUpdate();
+    };
+    this.onUnloadPlugin = (msg) => { actionsLoader.unloadPlugin(msg.name); this._sendSchemasUpdate(); };
     this.onRanklist      = onRanklist      ?? (() => {});
     this.onScreenshot    = onScreenshot    ?? (() => {});
     this.onAction        = onAction        ?? (() => {});

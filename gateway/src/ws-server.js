@@ -10,6 +10,9 @@ const PLUGINS_DIR = process.env.GATEWAY_PLUGINS_DIR
   ? path.resolve(process.env.GATEWAY_PLUGINS_DIR)
   : path.resolve(__dirname, '../plugins');
 
+// plugin_ack 对账表：Map<name, { timer, pending: Set<workerId> }>
+const pluginAckMap = new Map();
+
 // 读取插件目录，返回 [{ name, code }]
 function readPlugins() {
   if (!fs.existsSync(PLUGINS_DIR)) return [];
@@ -91,6 +94,27 @@ function createWsServer(httpServer, { registry, taskStore, scheduler }) {
     });
   });
 
+  function broadcastPluginAndTrack(msg) {
+    const { name } = msg;
+    // 取消上一轮未结束的对账（文件快速连续变更时覆盖）
+    if (pluginAckMap.has(name)) {
+      clearTimeout(pluginAckMap.get(name).timer);
+    }
+    const pending = new Set(
+      [...registry.workers.entries()]
+        .filter(([, w]) => w.ws.readyState === 1)
+        .map(([id]) => id)
+    );
+    registry.broadcast(msg);
+    const timer = setTimeout(() => {
+      if (pending.size > 0) {
+        logger.warn(`plugin_ack 超时: ${name} — ${pending.size} 个 Worker 未确认: [${[...pending].join(', ')}]`);
+      }
+      pluginAckMap.delete(name);
+    }, 30_000);
+    pluginAckMap.set(name, { timer, pending });
+  }
+
   // 监听 plugins/ 目录，文件新增或修改时广播给所有在线 Worker
   if (fs.existsSync(PLUGINS_DIR)) {
     let debounce = null;
@@ -105,7 +129,7 @@ function createWsServer(httpServer, { registry, taskStore, scheduler }) {
           logger.info(`plugins 目录: ${filename} 已删除，广播卸载`);
         } else {
           const code = fs.readFileSync(filePath, 'utf8');
-          registry.broadcast({ type: 'load_plugin', name, code });
+          broadcastPluginAndTrack({ type: 'load_plugin', name, code });
           logger.info(`plugins 目录: ${filename} 变更，广播热更新`);
         }
       }, 300);
@@ -115,6 +139,7 @@ function createWsServer(httpServer, { registry, taskStore, scheduler }) {
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     logger.info(`已创建插件目录: ${PLUGINS_DIR}`);
   }
+
 
   return wss;
 }
@@ -173,6 +198,17 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, scheduler
 
       sseBus.notifyWorkers();
       scheduler.dispatch();
+      break;
+    }
+
+    case 'plugin_ack': {
+      const entry = pluginAckMap.get(msg.name);
+      if (entry) {
+        entry.pending.delete(workerId);
+        if (!msg.ok) {
+          logger.warn(`[${workerId}] plugin_ack 失败: ${msg.name} — ${msg.reason ?? '未知'}`);
+        }
+      }
       break;
     }
 
