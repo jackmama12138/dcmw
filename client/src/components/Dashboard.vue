@@ -503,7 +503,7 @@ onMounted(async () => {
   background: var(--primary);
 }
 .db__runcount-dot {
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 2px;
   background: #fff;
   animation: db-pulse 1.4s ease-in-out infinite;
 }
