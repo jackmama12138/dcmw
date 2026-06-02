@@ -146,6 +146,10 @@ vite.config.ts.timestamp-*
 # Claude Code
 .claude/
 
+# Playwright CLI recordings
+.playwright-cli/
+playwright-cli/.playwright-cli/
+
 # logs directory
 logs/
 
