@@ -60,7 +60,7 @@
                   class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 rounded transition-colors" style="padding:1px 7px">停未登陆</button>
                 <button @click.stop="stopUnrankedWorker(w)"
                   class="text-xs bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-500 rounded transition-colors" style="padding:1px 7px">停未上榜</button>
-                <button @click.stop="douyinReload(w.profiles.filter(p=>p.state==='busy' && p.isLoggedIn && (p.rank===null||p.rank<=0)).map(p=>({workerId:w.workerId,profileName:p.profileName})))"
+                <button @click.stop="()=>{ const dw=w.profiles.filter(p=>p.state==='busy'&&p.currentAction==='dwell'&&p.isLoggedIn&&(p.rank===null||p.rank<=0)); if(!dw.length){toast('暂无节点处于挂机阶段','warn');return;} douyinReload(dw.map(p=>({workerId:w.workerId,profileName:p.profileName}))) }"
                   class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:1px 7px">刷新未上榜</button>
                 <button @click.stop="stopWorker(w.workerId)"
                   class="text-xs bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-500 rounded transition-colors" style="padding:1px 7px">全停</button>
@@ -115,7 +115,9 @@
                     :class="p.currentAction === 'dwell' ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-500' : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'"
                     class="text-xs border rounded transition-colors" style="padding:0 5px">榜单</button>
                   <button @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])"
-                    class="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 rounded transition-colors" style="padding:0 5px">刷新</button>
+                    :disabled="p.currentAction !== 'dwell'"
+                    :class="p.currentAction === 'dwell' ? 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-500' : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'"
+                    class="text-xs border rounded transition-colors" style="padding:0 5px">刷新</button>
                   <button v-if="p.state === 'busy'" @click="takeScreenshot(w.workerId, p.profileName, p.taskId)"
                     class="text-xs bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-500 rounded transition-colors" style="padding:0 5px">截图</button>
                   <button v-if="p.state === 'busy'" @click="stopNode(w.workerId, p.profileName)"
