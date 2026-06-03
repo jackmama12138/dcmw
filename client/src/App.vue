@@ -166,6 +166,7 @@ function connectWs() {
     if (msg.type === 'tasks_update')   tasks.value   = msg.tasks;
     if (msg.type === 'task_progress')  handleProgress(msg);
     if (msg.type === 'screenshot_done') handleScreenshotDone(msg);
+    if (msg.type === 'ranklist_result') handleRanklistResult(msg);
   };
 
   ws.onclose = () => {
@@ -191,6 +192,24 @@ function handleScreenshotDone(msg) {
   screenshotNotifications.value.unshift(msg);
   if (screenshotNotifications.value.length > 50) screenshotNotifications.value.length = 50;
   activeTab.value = 'screenshots';
+}
+
+// 榜单检查结果：成功提示排名，失败提示原因
+const RANKLIST_REASONS = {
+  live_ended   : '直播已结束',
+  tab_not_found: '贡献用户 tab 未出现',
+  timeout      : '榜单响应超时',
+  no_page      : '无活跃页面',
+};
+function handleRanklistResult(msg) {
+  const node = `${msg.worker_id}:${msg.profile}`;
+  if (msg.ok) {
+    const who = msg.nickname ? ` ${msg.nickname}` : '';
+    toast(`${node} 榜单排名 #${msg.rank}${who}`, 'success');
+  } else {
+    const why = RANKLIST_REASONS[msg.reason] ?? msg.reason ?? '未知原因';
+    toast(`${node} 榜单检查跳过：${why}`, 'warn');
+  }
 }
 
 provide('wsSend', wsSend);

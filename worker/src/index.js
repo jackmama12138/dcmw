@@ -125,15 +125,16 @@ const client = new GatewayClient({
     }
     const ctrl = runningTasks.get(taskKey(task_id, profile)) ?? { profile, task_id };
     const result = await actionsLoader.runStep(slot.context, { type: 'ranklist-check' }, ctrl);
-    if (result?.ok) {
-      client.send({
-        type       : 'ranklist_result',
-        profile,
-        rank       : result.rank,
-        nickname   : result.nickname ?? '',
-        is_logged_in: result.is_logged_in ?? false,
-      });
-    }
+    client.send({
+      type        : 'ranklist_result',
+      worker_id   : process.env.WORKER_ID ?? '',
+      profile,
+      ok          : result?.ok ?? false,
+      reason      : result?.reason ?? '',
+      rank        : result?.rank ?? 0,
+      nickname    : result?.nickname ?? '',
+      is_logged_in: result?.is_logged_in ?? false,
+    });
   },
 
   // 执行截图

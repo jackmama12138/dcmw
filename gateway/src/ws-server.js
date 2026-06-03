@@ -218,11 +218,21 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteSto
       break;
 
     case 'ranklist_result': {
-      const { profile, rank, nickname, is_logged_in } = msg;
-      if (profile && typeof rank === 'number') {
+      const { profile, ok, reason, rank, nickname, is_logged_in } = msg;
+      if (ok && profile && typeof rank === 'number') {
         registry.updateRank(workerId, profile, rank, nickname ?? '', is_logged_in ?? false);
         sseBus.notifyWorkerPatch(workerId);
       }
+      // 无论成功失败都广播给前端，前端可展示 toast
+      clientBus.broadcast({
+        type     : 'ranklist_result',
+        worker_id: workerId,
+        profile,
+        ok       : ok ?? false,
+        reason   : reason ?? '',
+        rank     : rank ?? 0,
+        nickname : nickname ?? '',
+      });
       break;
     }
 
