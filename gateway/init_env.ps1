@@ -9,9 +9,10 @@ $ErrorActionPreference = "Stop"
 $LocalNodeMsi    = Join-Path $PSScriptRoot "node-installer.msi"
 $LocalRedisZip   = Join-Path $PSScriptRoot "redis-installer.zip"
 
-# Temp cache file for better-sqlite3 native hotpatch binary
-$SqliteTarGzPath = "$env:TEMP\node-v115-win32-x64.tar.gz"
-$SqliteTmpExtDir = "$env:TEMP\sqlite_tmp_extract"
+# better-sqlite3 预编译包：优先用脚本同目录的本地文件，没有再从镜像下载
+$LocalSqliteTarGz = Join-Path $PSScriptRoot "better-sqlite3-v9.6.0-node-v115-win32-x64.tar.gz"
+$SqliteTarGzPath  = "$env:TEMP\node-v115-win32-x64.tar.gz"
+$SqliteTmpExtDir  = "$env:TEMP\sqlite_tmp_extract"
 
 # Target deployment directories and runtime constants (Using ultra-stable AliCloud Registry)
 $RedisInstallDir = "C:\Redis"
@@ -115,10 +116,17 @@ if (-not (Test-Path "package.json")) {
         
         if (Test-Path $SqliteTarGzPath) { Remove-Item $SqliteTarGzPath -Force }
         if (Test-Path $SqliteTmpExtDir) { Remove-Item $SqliteTmpExtDir -Recurse -Force }
-        
-        & curl.exe --ssl-no-revoke --connect-timeout 20 --fail --retry 3 -ssL -o "$SqliteTarGzPath" "https://registry.npmmirror.com/-/binary/better-sqlite3/v9.4.3/node-v115-win32-x64.tar.gz"
-        
-        if ($LASTEXITCODE -eq 0 -and (Test-Path $SqliteTarGzPath)) {
+
+        # 优先使用本地离线包，否则从 npmmirror 下载
+        if (Test-Path $LocalSqliteTarGz) {
+            Log-Info "Found local better-sqlite3 prebuilt. Using offline package..."
+            Copy-Item -Path $LocalSqliteTarGz -Destination $SqliteTarGzPath -Force
+        } else {
+            Log-Warn "Local prebuilt not found. Downloading from npmmirror..."
+            & curl.exe --ssl-no-revoke --connect-timeout 20 --fail --retry 3 -ssL -o "$SqliteTarGzPath" "https://registry.npmmirror.com/-/binary/better-sqlite3/v9.6.0/node-v115-win32-x64.tar.gz"
+        }
+
+        if (Test-Path $SqliteTarGzPath) {
             Log-Info "Native runtime package fetched successfully. Decompressing artifact..."
             New-Item -Path $SqliteTmpExtDir -ItemType Directory | Out-Null
             & tar.exe -xzf "$SqliteTarGzPath" -C "$SqliteTmpExtDir"
