@@ -47,10 +47,13 @@
           <a-button size="mini" type="text" @click="adjustUrl(group.url, 1800)">+30m</a-button>
           <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="screenshotGroup(group.nodes)">截图</a-button>
+          <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="checkRanklistUrl(group.nodes)">获取榜单</a-button>
           <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="stopGroupUnlogged(group.nodes)">停未登陆</a-button>
+          <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="stopGroupUnranked(group.nodes)">停未上榜</a-button>
+          <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="reloadUnrankedUrl(group.nodes)">刷新未上榜</a-button>
           <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" status="danger" @click="stopUrl(group.url)">全停</a-button>
@@ -228,7 +231,7 @@ async function screenshotGroup(nodes) {
 
 .at__count { font-size: var(--fs-sm); color: var(--success); text-align: center; font-weight: 600; }
 .at__actions { justify-content: flex-end; }
-.at__actions :deep(.arco-divider-vertical) { border-color: #93c5fd; opacity: 0.7; }
+.at__actions :deep(.arco-divider-vertical) { border-color: #3b82f6; }
 
 .at__empty { padding: 48px 0; }
 </style>

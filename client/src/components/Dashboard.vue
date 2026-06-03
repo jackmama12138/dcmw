@@ -69,7 +69,9 @@
                 <a-button size="mini" type="text" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
                 <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="stopUnloggedWorker(w)">停未登陆</a-button>
+                <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="stopUnrankedWorker(w)">停未上榜</a-button>
+                <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="reloadDwell(w)">刷新未上榜</a-button>
                 <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" status="danger" @click.stop="stopWorker(w.workerId)">全停</a-button>
@@ -123,14 +125,18 @@
                     <a-button size="mini" type="text"
                       :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
                       @click="checkRanklist([{ workerId: w.workerId, profileName: p.profileName }])">榜单</a-button>
+                    <a-divider direction="vertical" :margin="4" />
                     <a-button size="mini" type="text"
                       :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
                       @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])">刷新</a-button>
-                    <a-button v-if="p.state === 'busy'" size="mini" type="text"
-                      @click="takeScreenshot(w.workerId, p.profileName, p.taskId)">截图</a-button>
-                    <a-divider v-if="p.state === 'busy'" direction="vertical" :margin="4" />
-                    <a-button v-if="p.state === 'busy'" size="mini" type="text" status="danger"
-                      @click="stopNode(w.workerId, p.profileName)">停止</a-button>
+                    <template v-if="p.state === 'busy'">
+                      <a-divider direction="vertical" :margin="4" />
+                      <a-button size="mini" type="text"
+                        @click="takeScreenshot(w.workerId, p.profileName, p.taskId)">截图</a-button>
+                      <a-divider direction="vertical" :margin="4" />
+                      <a-button size="mini" type="text" status="danger"
+                        @click="stopNode(w.workerId, p.profileName)">停止</a-button>
+                    </template>
                   </a-space>
                 </a-col>
               </a-row>
@@ -566,7 +572,7 @@ onMounted(async () => {
 
 .db__right-actions { justify-content: flex-end; width: 100%; }
 .db__right-actions :deep(.arco-divider-vertical),
-.db__worker-actions :deep(.arco-divider-vertical) { border-color: #93c5fd; opacity: 0.7; }
+.db__worker-actions :deep(.arco-divider-vertical) { border-color: #3b82f6; }
 
 .db__publish { flex-shrink: 0; }
 .db__publish-row { display: flex; align-items: center; gap: 12px; }
