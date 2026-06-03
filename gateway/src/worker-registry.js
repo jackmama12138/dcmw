@@ -209,7 +209,11 @@ class WorkerRegistry {
 
   // 生成所有 Worker 的状态摘要（供前端展示）
   summary() {
-    return [...this.workers.keys()].map(id => this.workerSummary(id)).filter(Boolean);
+    const lastOctet = id => parseInt(id.split('.').at(-1), 10) || 0;
+    return [...this.workers.keys()]
+      .sort((a, b) => lastOctet(a) - lastOctet(b))
+      .map(id => this.workerSummary(id))
+      .filter(Boolean);
   }
 }
 

@@ -28,7 +28,10 @@ module.exports = {
         return { ok: false, reason: 'tab_not_found' };
       }
 
-      // 先注册监听再 hover，hover 必然触发新请求
+      // 先移开鼠标确保 mouseenter 能重新触发，再注册监听、hover
+      await page.mouse.move(0, 0).catch(() => {});
+      await new Promise(r => setTimeout(r, 200));
+
       const responsePromise = page.waitForResponse(
         r => r.url().includes(RANKLIST_KW),
         { timeout: 10_000 }
@@ -40,8 +43,12 @@ module.exports = {
         json = await (await responsePromise).json();
       } catch {
         logger.warn(`[${profile}] ranklist: 响应超时或解析失败`);
+        await page.mouse.move(0, 0).catch(() => {});
         return { ok: false, reason: 'timeout' };
       }
+
+      // 响应拿到后移开鼠标，面板收起，下次 hover 才能重新触发 mouseenter
+      await page.mouse.move(0, 0).catch(() => {});
 
       const selfInfo = json?.data?.self_info ?? {};
       const payload = {

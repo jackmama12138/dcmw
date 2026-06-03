@@ -7,9 +7,14 @@
       </a-space>
     </template>
     <template #extra>
-      <a-button type="primary" size="small" :loading="loading" @click="load">
-        {{ loading ? '加载中…' : '刷新' }}
-      </a-button>
+      <a-space :size="8">
+        <a-popconfirm v-if="allShots.length" content="确认删除全部截图？" type="warning" @ok="doDeleteAll">
+          <a-button size="small" status="danger">全部删除</a-button>
+        </a-popconfirm>
+        <a-button type="primary" size="small" :loading="loading" @click="load">
+          {{ loading ? '加载中…' : '刷新' }}
+        </a-button>
+      </a-space>
     </template>
 
     <!-- filters -->
@@ -58,7 +63,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { fetchScreenshots, deleteScreenshot } from '../api.js';
+import { fetchScreenshots, deleteScreenshot, deleteAllScreenshots } from '../api.js';
 
 const PAGE_SIZE = 50;
 
@@ -98,6 +103,16 @@ async function load() {
     if (!signal.aborted) allShots.value = [];
   } finally {
     if (!signal.aborted) loading.value = false;
+  }
+}
+
+async function doDeleteAll() {
+  try {
+    await deleteAllScreenshots();
+    allShots.value = [];
+    Message.success('已全部删除');
+  } catch (err) {
+    Message.error(err.response?.data?.error ?? err.message);
   }
 }
 

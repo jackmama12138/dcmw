@@ -1,6 +1,7 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const ChromePool = require('./chrome-pool');
 const GatewayClient = require('./ws-client');
@@ -10,13 +11,41 @@ const logger = require('./logger');
 
 // ─── 环境变量校验 ─────────────────────────────────────────────────────────────
 
+// 自动获取本机局域网 IPv4（私有网段 192.168/10/172.16-31），用作 WORKER_ID
+// 多台 Worker 可共用同一份配置，无需逐台写死 WORKER_ID；断开的网卡无 IPv4 不会被选中
+function getLanIp() {
+  const PRIVATE = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/;
+  const candidates = [];
+  for (const [name, infos] of Object.entries(os.networkInterfaces())) {
+    for (const info of infos || []) {
+      if (info.family === 'IPv4' && !info.internal && PRIVATE.test(info.address)) {
+        candidates.push({ name, address: info.address });
+      }
+    }
+  }
+  // 可选 LAN_PREFIX 强制指定网段（同时存在多个连接的私有网卡时用）
+  const prefix = process.env.LAN_PREFIX;
+  const pool = prefix ? candidates.filter(c => c.address.startsWith(prefix)) : candidates;
+  if (pool.length === 0) return null;
+  if (pool.length > 1) {
+    logger.warn(`检测到多个局域网 IP，取第一个；如不对请设 LAN_PREFIX：${pool.map(c => `${c.address}(${c.name})`).join(', ')}`);
+  }
+  return pool[0].address;
+}
+
 const {
   MAC_CHROME_PATH,
   CHROME_PROFILES_BASE_DIR,
   CHROME_PROFILE_NAME,
-  WORKER_ID,
   SERVER_HOST,
 } = process.env;
+
+// WORKER_ID：优先用环境变量，未设则自动取本机局域网 IP（取不到则下方校验 fail-fast 退出）
+const WORKER_ID = process.env.WORKER_ID || getLanIp();
+if (!process.env.WORKER_ID) {
+  if (WORKER_ID) logger.info(`WORKER_ID 自动取本机局域网 IP：${WORKER_ID}`);
+  else logger.error('WORKER_ID 未设置且无法自动获取局域网 IP（未找到 192.168/10/172 私有网段 IPv4）');
+}
 
 const REQUIRED = {
   MAC_CHROME_PATH,

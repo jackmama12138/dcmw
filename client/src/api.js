@@ -55,6 +55,11 @@ export async function stopWorker(workerId) {
   return data;
 }
 
+export async function connectRadmin(workerId) {
+  const { data } = await http.post(`/api/workers/${encodeURIComponent(workerId)}/radmin`);
+  return data;
+}
+
 export async function stopNode(workerId, profile) {
   const { data } = await http.post(`/api/workers/${encodeURIComponent(workerId)}/nodes/${encodeURIComponent(profile)}/stop`);
   return data;
@@ -108,6 +113,11 @@ export async function fetchScreenshots(signal) {
 
 export async function deleteScreenshot(filename) {
   const { data } = await http.delete(`/api/screenshots/${encodeURIComponent(filename)}`);
+  return data;
+}
+
+export async function deleteAllScreenshots() {
+  const { data } = await http.delete('/api/screenshots');
   return data;
 }
 

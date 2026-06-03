@@ -278,6 +278,10 @@ class TaskStoreSQLite {
     return this.db.prepare('DELETE FROM screenshots_meta WHERE filename = ?').run(filename).changes;
   }
 
+  async deleteAllScreenshotMeta() {
+    return this.db.prepare('DELETE FROM screenshots_meta').run().changes;
+  }
+
   // ─── queries ──────────────────────────────────────────────────────────────
 
   async getDispatchable() {

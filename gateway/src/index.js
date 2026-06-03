@@ -12,6 +12,7 @@ const TaskStoreSQLite = require('./task-store-sqlite');
 const WorkerRegistry = require('./worker-registry');
 const Scheduler = require('./scheduler');
 const { createWsServer, cleanupWorker } = require('./ws-server');
+const { startDiscovery } = require('./discovery');
 const { createRouter } = require('./router');
 const sseBus = require('./sse-bus');
 
@@ -47,6 +48,8 @@ async function main() {
   app.use('/api/screenshots', express.raw({ type: 'image/jpeg', limit: '3mb' }));
   app.use(express.json());
   app.use(express.static(path.resolve(__dirname, '../public')));
+  // worker 部署包下载：bootstrap 从 /deploy/dcmw-worker.zip 拉取
+  app.use('/deploy', express.static(path.resolve(__dirname, '../deploy')));
   // Serve screenshot files directly so the frontend can load them via <img src>
   app.use('/data/screenshots', express.static(path.resolve(__dirname, '../data/screenshots')));
   app.use(createRouter({ taskStore, sqliteStore, registry, scheduler }));
@@ -60,9 +63,15 @@ async function main() {
     logger.info(`Gateway listening on port ${config.port}`);
   });
 
-  // Periodic re-dispatch: if tasks are waiting but all workers were offline,
-  // no event would trigger dispatch after they reconnect — this acts as a safety net.
-  setInterval(() => scheduler.dispatch(), 10_000);
+  // 启动 UDP 发现服务：同子网 worker 广播即可发现本机，无需写死 gateway IP
+  startDiscovery(config.port);
+
+  // 启动后延迟 35s 再开始周期调度，给所有 Worker 时间重连并通过心跳恢复 busy 状态
+  // 避免 resetRunning 归零后立即重复派发正在执行中的任务
+  setTimeout(() => {
+    scheduler.dispatch();
+    setInterval(() => scheduler.dispatch(), 10_000);
+  }, 35_000);
 
   // ─── Fix ⑦: heartbeat timeout watcher ────────────────────────────────────
   // Workers send heartbeats every 30s. After 90s of silence (3 missed beats),

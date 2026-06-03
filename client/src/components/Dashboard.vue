@@ -57,15 +57,19 @@
               </span>
               <span v-else class="db__runcount">{{ w.slots.total }} 节点</span>
 
-              <!-- 节点状态汇总：上榜/未上榜/未登陆 -->
-              <span v-if="rollup(w).total" class="db__rollup">
-                <span v-if="rollup(w).ranked"   class="db__rollup-item"><i class="db__sq db__sq--green"></i>{{ rollup(w).ranked }}</span>
-                <span v-if="rollup(w).unranked" class="db__rollup-item"><i class="db__sq db__sq--red"></i>{{ rollup(w).unranked }}</span>
-                <span v-if="rollup(w).unlogged" class="db__rollup-item"><i class="db__sq db__sq--orange"></i>{{ rollup(w).unlogged }}</span>
+              <!-- 节点状态汇总：上榜/未上榜/未登陆，用 v-for 单次调用 rollup 避免重复计算 -->
+              <span v-for="r in [rollup(w)]" :key="0">
+                <span v-if="r.total" class="db__rollup">
+                  <span v-if="r.ranked"   class="db__rollup-item"><i class="db__sq db__sq--green"></i>{{ r.ranked }}</span>
+                  <span v-if="r.unranked" class="db__rollup-item"><i class="db__sq db__sq--red"></i>{{ r.unranked }}</span>
+                  <span v-if="r.unlogged" class="db__rollup-item"><i class="db__sq db__sq--orange"></i>{{ r.unlogged }}</span>
+                </span>
               </span>
 
               <span class="db__spacer"></span>
               <a-space :size="2" class="db__worker-actions">
+                <a-button size="mini" type="text" @click.stop="screenshotWorker(w)">截图</a-button>
+                <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
                 <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="stopUnloggedWorker(w)">停未登陆</a-button>
@@ -74,7 +78,13 @@
                 <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="reloadDwell(w)">刷新未上榜</a-button>
                 <a-divider direction="vertical" :margin="4" />
+                <a-button size="mini" type="text"
+                  :disabled="w.profiles.filter(p=>p.state==='busy'&&p.isLoggedIn===true&&p.rank!==null&&p.rank<=0).every(p=>dzCooldowns.has(`${w.workerId}:${p.profileName}`))"
+                  @click.stop="dz(w.profiles.filter(p=>p.state==='busy').map(p=>({workerId:w.workerId,profileName:p.profileName,isLoggedIn:p.isLoggedIn,rank:p.rank})))">dz</a-button>
+                <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" status="danger" @click.stop="stopWorker(w.workerId)">全停</a-button>
+                <a-divider direction="vertical" :margin="4" />
+                <a-button size="mini" type="text" @click.stop="onRadmin(w.workerId)">Radmin</a-button>
               </a-space>
             </div>
 
@@ -129,6 +139,10 @@
                     <a-button size="mini" type="text"
                       :disabled="effectiveAction(w.workerId, p) !== 'dwell'"
                       @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])">刷新</a-button>
+                    <a-divider direction="vertical" :margin="4" />
+                    <a-button size="mini" type="text"
+                      :disabled="p.state !== 'busy' || dzCooldowns.has(`${w.workerId}:${p.profileName}`)"
+                      @click="dz([{ workerId: w.workerId, profileName: p.profileName, isLoggedIn: p.isLoggedIn, rank: p.rank }])">dz</a-button>
                     <template v-if="p.state === 'busy'">
                       <a-divider direction="vertical" :margin="4" />
                       <a-button size="mini" type="text"
@@ -168,7 +182,6 @@
         <a-button type="primary" size="small" :loading="submitting" @click="submit">
           {{ submitting ? '提交中…' : '发布' }}
         </a-button>
-        <span v-if="submitMsg" :class="submitError ? 't-danger' : 't-success'" class="db__submit-msg">{{ submitMsg }}</span>
       </div>
     </a-card>
   </div>
@@ -178,7 +191,7 @@
 import { ref, computed, onMounted, watch, inject } from 'vue';
 import {
   adjustTime, fetchSchedulerConfig, setSchedulerConfig,
-  fetchTemplates, submitTask, triggerScreenshot,
+  fetchTemplates, submitTask, triggerScreenshot, connectRadmin,
 } from '../api.js';
 
 const props = defineProps({ workers: { type: Array, default: () => [] } });
@@ -194,6 +207,18 @@ const pendingRankKeys = ref(new Set());
 const rankSentTotal   = ref(0);
 
 watch(() => props.workers, (newWorkers) => {
+  if (newWorkers?.length) {
+    const s = new Set(collapsedWorkers.value);
+    let changed = false;
+    for (const w of newWorkers) {
+      if (!knownWorkerIds.has(w.workerId)) {
+        s.add(w.workerId);
+        knownWorkerIds.add(w.workerId);
+        changed = true;
+      }
+    }
+    if (changed) collapsedWorkers.value = s;
+  }
   if (!newWorkers?.length || !pendingRankKeys.value.size) return;
   const pending = new Set(pendingRankKeys.value);
   let changed = false;
@@ -218,6 +243,7 @@ const dispatchMode   = ref('sequential');
 const perWorkerBatch = ref(1);
 const selectedWorkers = ref(new Set());
 const lastSelectedWorkerId = ref(null);
+const dzCooldowns = ref(new Set());
 const timeAdjusts  = [
   { label: '-10m', val: -600 },
   { label: '-1m',  val: -60  },
@@ -229,8 +255,6 @@ const timeAdjusts  = [
 const CACHE_KEY = 'dcmw_submit_form';
 const templates   = ref([]);
 const submitting  = ref(false);
-const submitMsg   = ref('');
-const submitError = ref(false);
 
 const defaultForm = () => ({ target_url: '', task_type: '', count: 5, duration_min: 60 });
 
@@ -246,7 +270,8 @@ watch(form, v => {
 }, { deep: true });
 
 // ── 统计 ──────────────────────────────────────────────
-const collapsedWorkers = ref(new Set());
+const collapsedWorkers = ref(new Set(props.workers.map(w => w.workerId)));
+const knownWorkerIds   = new Set(props.workers.map(w => w.workerId));
 function toggleWorker(id) {
   const s = new Set(collapsedWorkers.value);
   s.has(id) ? s.delete(id) : s.add(id);
@@ -294,6 +319,12 @@ function effectiveAction(workerId, p) {
 }
 
 // ── Worker 级 dwell 批量操作 ──────────────────────────
+async function screenshotWorker(w) {
+  const busy = w.profiles.filter(p => p.state === 'busy');
+  if (!busy.length) { toast('无运行中节点', 'warn'); return; }
+  await Promise.allSettled(busy.map(p => takeScreenshot(w.workerId, p.profileName, p.taskId)));
+  toast(`已向 ${busy.length} 个节点发送截图`);
+}
 function checkRanklistDwell(w) {
   const dw = w.profiles.filter(p => p.state === 'busy' && effectiveAction(w.workerId, p) === 'dwell');
   if (!dw.length) { toast('暂无节点处于挂机阶段', 'warn'); return; }
@@ -374,6 +405,31 @@ function douyinReload(nodes) {
   for (const n of nodes) wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'douyin-reload' });
   toast(`已刷新 ${nodes.length} 个节点`);
 }
+function dz(nodes) {
+  const targets = nodes.filter(n => n.isLoggedIn === true && n.rank !== null && n.rank <= 0);
+  if (!targets.length) { toast('无未上榜节点', 'warn'); return; }
+  const s = new Set(dzCooldowns.value);
+  let sent = 0;
+  for (const n of targets) {
+    const key = `${n.workerId}:${n.profileName}`;
+    if (s.has(key)) continue;
+    s.add(key);
+    wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'dz' });
+    sent++;
+    setTimeout(() => {
+      const s2 = new Set(dzCooldowns.value);
+      s2.delete(key);
+      dzCooldowns.value = s2;
+    }, 24000);
+  }
+  dzCooldowns.value = s;
+  if (sent) toast(`已向 ${sent} 个未上榜节点发送点赞`);
+  else toast('节点冷却中，请稍后', 'warn');
+}
+async function onRadmin(workerId) {
+  try { await connectRadmin(workerId); }
+  catch (err) { toast(err.response?.data?.error ?? err.message, 'warn'); }
+}
 function stopWorker(workerId) {
   wsSend({ type: 'stop_worker', worker_id: workerId });
   toast(`已停止 Worker ${workerId} 所有节点`);
@@ -383,8 +439,12 @@ function stopNode(workerId, profile) {
   toast(`已停止节点 ${profile}`);
 }
 async function takeScreenshot(workerId, profile, taskId) {
-  await triggerScreenshot({ worker_id: workerId, profile, task_id: taskId });
-  toast('截图已发送，完成后自动跳转');
+  try {
+    await triggerScreenshot({ worker_id: workerId, profile, task_id: taskId });
+    toast('截图已发送，完成后自动跳转');
+  } catch (err) {
+    toast(err.response?.data?.error ?? err.message, 'warn');
+  }
 }
 
 function stopGroupUnlogged(nodes) {
@@ -415,13 +475,32 @@ function stopUnrankedWorker(w) {
   toast(`已停止 ${w.workerId} 上 ${targets.length} 个未上榜节点`);
 }
 
+async function checkLiveStatus(url) {
+  try {
+    const { hostname, pathname } = new URL(url);
+    if (!hostname.includes('live.douyin.com')) return true;
+    const roomId = pathname.replace(/^\//, '').split('/')[0];
+    if (!roomId) return true;
+    const res = await fetch(`http://113.45.79.245:4000/api/live/room/${roomId}`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return true;
+    const json = await res.json();
+    const status = json?.data?.room_status;
+    return status === 0 || status === '0';
+  } catch {
+    return true; // API 挂了跳过校验
+  }
+}
+
 async function submit() {
-  submitMsg.value = '';
-  submitError.value = false;
-  if (!form.value.target_url) { submitMsg.value = '请填写目标 URL'; submitError.value = true; return; }
-  if (!form.value.task_type) { submitMsg.value = '请选择任务类型'; submitError.value = true; return; }
+  if (!form.value.target_url) { toast('请填写目标 URL', 'warn'); return; }
+  if (!form.value.task_type) { toast('请选择任务类型', 'warn'); return; }
   submitting.value = true;
   try {
+    const isLive = await checkLiveStatus(form.value.target_url);
+    if (!isLive) {
+      toast('直播间未开播，无法发布任务', 'warn');
+      return;
+    }
     const payload = {
       target_url: form.value.target_url,
       task_type:  form.value.task_type,
@@ -432,13 +511,11 @@ async function submit() {
       payload.target_worker_ids = [...selectedWorkers.value];
     }
     await submitTask(payload);
-    submitMsg.value = '已发布';
+    toast('任务已发布', 'success');
     emit('refresh');
-    setTimeout(() => { submitMsg.value = ''; }, 3000);
   } catch (err) {
     const d = err.response?.data;
-    submitMsg.value = d?.error ?? err.message;
-    submitError.value = true;
+    toast(d?.error ?? err.message, 'warn');
   } finally {
     submitting.value = false;
   }
@@ -455,7 +532,8 @@ onMounted(async () => {
 
 <style scoped>
 .db { display: flex; flex-direction: column; height: calc(100vh - 96px); gap: 6px; }
-.db__card { flex: 1; min-height: 0; overflow: hidden; }
+.db__card { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.db__card :deep(.arco-card-body) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .db__title { font-size: 14px; font-weight: 600; }
 .db__legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--tx-3); font-weight: 400; }
 .db__legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
@@ -579,6 +657,4 @@ onMounted(async () => {
 .db__publish-url { flex: 1; min-width: 200px; }
 .db__templates { display: flex; align-items: center; max-width: 420px; overflow-x: auto; flex-shrink: 1; }
 .db__templates :deep(.arco-radio-group) { white-space: nowrap; }
-.db__publish-num { width: 80px; }
-.db__submit-msg { font-size: 12px; flex-shrink: 0; }
-</style>
+.db__publish-num { width: 80px; }</style>

@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
+const os = require('os');
 const logger = require('./logger');
 
 const SCREENSHOTS_DIR = path.resolve(__dirname, '../data/screenshots');
@@ -126,7 +128,7 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
       return res.status(500).json({ error: '内部错误' });
     }
 
-    logger.info(`任务已添加: ${task.task_id} 模板=${templateName ?? '—'} 数量=${task.count} url=${task.target_url}`);
+    logger.info(`任务已添加: ${task.task_id} 模板=${templateName ?? '—'} 数量=${task.count} url=${task.target_url} target_worker_ids=${JSON.stringify(task.target_worker_ids ?? null)}`);
     scheduler.dispatch();
     sseBus.notifyTasks();
     return res.status(201).json({ ok: true, task });
@@ -480,6 +482,21 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
     }
   });
 
+  // 全部删除截图
+  router.delete('/api/screenshots', async (_req, res) => {
+    try {
+      const files = fs.readdirSync(SCREENSHOTS_DIR).filter(f => f.endsWith('.jpg'));
+      for (const f of files) {
+        try { fs.unlinkSync(path.join(SCREENSHOTS_DIR, f)); } catch {}
+      }
+      await sqliteStore.deleteAllScreenshotMeta();
+      logger.info(`全部删除截图: ${files.length} 张`);
+      return res.json({ ok: true, deleted: files.length });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // 触发指定节点立即截图（fire-and-forget）
   router.post('/api/screenshot/take', (req, res) => {
     const { worker_id, profile, task_id } = req.body ?? {};
@@ -554,6 +571,49 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
   // 获取所有已连接 Worker 的状态摘要
   router.get('/api/schemas', (_req, res) => {
     res.json(registry.getSchemas());
+  });
+
+  router.post('/api/workers/:worker_id/radmin', (req, res) => {
+    const { worker_id } = req.params;
+    if (!registry.workers.has(worker_id)) {
+      return res.status(404).json({ error: 'Worker 不存在' });
+    }
+    // worker_id 即为 IP，只允许合法 IPv4 格式，防止命令注入
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(worker_id)) {
+      return res.status(400).json({ error: 'worker_id 格式不合法' });
+    }
+    const vbsContent = `Set WshShell = WScript.CreateObject("WScript.Shell")
+WshShell.Run "Radmin.exe /connect:${worker_id}:7899"
+WScript.Sleep 1500
+WshShell.AppActivate "Radmin " & ChrW(23433) & ChrW(20840) & ChrW(24615)
+WScript.Sleep 200
+WshShell.SendKeys "+"
+WScript.Sleep 300
+
+' 用剪贴板粘贴，避免中文输入法干扰 SendKeys
+WshShell.Run "powershell -Command ""Set-Clipboard 'admin'""", 0, True
+WshShell.SendKeys "^v"
+WScript.Sleep 200
+WshShell.SendKeys "{TAB}"
+WScript.Sleep 200
+WshShell.Run "powershell -Command ""Set-Clipboard 'radmin.7899'""", 0, True
+WshShell.SendKeys "^v"
+WScript.Sleep 200
+WshShell.SendKeys "{ENTER}"
+`;
+    const vbsPath = path.join(os.tmpdir(), `radmin_${worker_id.replace(/\./g, '_')}.vbs`);
+    try {
+      fs.writeFileSync(vbsPath, vbsContent, 'utf8');
+    } catch (err) {
+      logger.error(`写入 VBS 文件失败: ${err.message}`);
+      return res.status(500).json({ error: '写入脚本失败' });
+    }
+    execFile('cscript', ['//nologo', vbsPath], (err) => {
+      fs.unlink(vbsPath, () => {});
+      if (err) logger.warn(`Radmin 脚本执行异常: ${err.message}`);
+    });
+    logger.info(`Radmin 连接已触发 → ${worker_id}:7899`);
+    return res.json({ ok: true });
   });
 
 

@@ -26,8 +26,11 @@
       <a-empty v-if="!urlGroups.length" description="暂无执行中的任务" class="at__empty" />
 
       <div v-for="group in urlGroups" :key="group.url" class="at__row">
-        <!-- URL -->
-        <div class="mono at__url" :title="group.url">{{ group.url }}</div>
+        <!-- URL / 标题 -->
+        <div class="at__url-cell">
+          <div v-if="group.title" class="at__url-title" :title="group.title">{{ group.title }}</div>
+          <div class="mono at__url" :title="group.url">{{ group.url }}</div>
+        </div>
 
         <!-- 节点色块 -->
         <div class="at__nodes">
@@ -56,6 +59,10 @@
           <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="reloadUnrankedUrl(group.nodes)">刷新未上榜</a-button>
           <a-divider direction="vertical" :margin="4" />
+          <a-button size="mini" type="text"
+            :disabled="group.nodes.filter(n=>n.isLoggedIn===true&&n.rank!==null&&n.rank<=0).every(n=>dzCooldowns.has(`${n.workerId}:${n.profileName}`))"
+            @click="dzGroup(group.nodes)">dz</a-button>
+          <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" status="danger" @click="stopUrl(group.url)">全停</a-button>
         </a-space>
       </div>
@@ -68,6 +75,7 @@ import { computed, inject, ref } from 'vue';
 import { adjustTime, triggerScreenshot } from '../api.js';
 
 const props       = defineProps({ workers: { type: Array, default: () => [] } });
+const dzCooldowns = ref(new Set());
 const wsSend      = inject('wsSend', () => {});
 const toast       = inject('toast', () => {});
 const progressMap = inject('progressMap', ref({}));
@@ -77,8 +85,10 @@ const urlGroups = computed(() => {
   for (const w of props.workers) {
     for (const p of w.profiles) {
       if (p.state === 'busy' && p.targetUrl) {
-        if (!map.has(p.targetUrl)) map.set(p.targetUrl, []);
-        map.get(p.targetUrl).push({
+        if (!map.has(p.targetUrl)) map.set(p.targetUrl, { title: p.currentTitle || null, nodes: [] });
+        const entry = map.get(p.targetUrl);
+        if (!entry.title && p.currentTitle) entry.title = p.currentTitle;
+        entry.nodes.push({
           workerId: w.workerId, profileName: p.profileName,
           isLoggedIn: p.isLoggedIn, rank: p.rank, taskId: p.taskId,
           currentAction: progressMap.value[`${w.workerId}:${p.profileName}`]?.action ?? p.currentAction,
@@ -86,7 +96,7 @@ const urlGroups = computed(() => {
       }
     }
   }
-  return [...map.entries()].map(([url, nodes]) => ({ url, nodes }));
+  return [...map.entries()].map(([url, { title, nodes }]) => ({ url, title, nodes }));
 });
 
 const totalRunning = computed(() => urlGroups.value.reduce((s, g) => s + g.nodes.length, 0));
@@ -111,7 +121,11 @@ function stopUrl(url) {
   toast(`已停止 URL: ${url.slice(0, 40)}${url.length > 40 ? '…' : ''}`);
 }
 async function adjustUrl(url, delta) {
-  try { await adjustTime(url, delta); } catch (err) { toast(err.message, 'warn'); }
+  try {
+    await adjustTime(url, delta);
+    const label = delta > 0 ? `+${delta / 60}m` : `${delta / 60}m`;
+    toast(`已调整时长 ${label}`);
+  } catch (err) { toast(err.message, 'warn'); }
 }
 function checkRanklistUrl(nodes) {
   const dwell = nodes.filter(n => n.currentAction === 'dwell');
@@ -132,6 +146,27 @@ function stopGroupUnranked(nodes) {
   if (!t.length) { toast('无未上榜节点', 'warn'); return; }
   for (const n of t) wsSend({ type: 'stop_node', worker_id: n.workerId, profile: n.profileName });
   toast(`已停止 ${t.length} 个未上榜节点`);
+}
+function dzGroup(nodes) {
+  const targets = nodes.filter(n => n.isLoggedIn === true && n.rank !== null && n.rank <= 0);
+  if (!targets.length) { toast('无未上榜节点', 'warn'); return; }
+  const s = new Set(dzCooldowns.value);
+  let sent = 0;
+  for (const n of targets) {
+    const key = `${n.workerId}:${n.profileName}`;
+    if (s.has(key)) continue;
+    s.add(key);
+    wsSend({ type: 'run_action', worker_id: n.workerId, profile: n.profileName, action: 'dz' });
+    sent++;
+    setTimeout(() => {
+      const s2 = new Set(dzCooldowns.value);
+      s2.delete(key);
+      dzCooldowns.value = s2;
+    }, 24000);
+  }
+  dzCooldowns.value = s;
+  if (sent) toast(`已向 ${sent} 个未上榜节点发送点赞`);
+  else toast('节点冷却中，请稍后', 'warn');
 }
 function reloadUnrankedUrl(nodes) {
   const dwell = nodes.filter(n => n.currentAction === 'dwell');
@@ -203,9 +238,25 @@ async function screenshotGroup(nodes) {
 }
 .at__row:hover { background: var(--bg-page); }
 
-.at__url {
+.at__url-cell {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+}
+.at__url-title {
   font-size: var(--fs-sm);
-  color: var(--tx-2);
+  color: var(--tx-1);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.at__url {
+  font-size: 11px;
+  color: var(--tx-4);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
