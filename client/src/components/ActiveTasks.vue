@@ -45,8 +45,10 @@
         <!-- 操作按钮 -->
         <a-space :size="2" class="at__actions">
           <a-button size="mini" type="text" @click="adjustUrl(group.url, 1800)">+30m</a-button>
+          <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="screenshotGroup(group.nodes)">截图</a-button>
           <a-button size="mini" type="text" @click="checkRanklistUrl(group.nodes)">获取榜单</a-button>
+          <a-divider direction="vertical" :margin="4" />
           <a-button size="mini" type="text" @click="stopGroupUnlogged(group.nodes)">停未登陆</a-button>
           <a-button size="mini" type="text" @click="stopGroupUnranked(group.nodes)">停未上榜</a-button>
           <a-button size="mini" type="text" @click="reloadUnrankedUrl(group.nodes)">刷新未上榜</a-button>

@@ -67,6 +67,7 @@
               <span class="db__spacer"></span>
               <a-space :size="2" class="db__worker-actions">
                 <a-button size="mini" type="text" @click.stop="checkRanklistDwell(w)">获取榜单</a-button>
+                <a-divider direction="vertical" :margin="4" />
                 <a-button size="mini" type="text" @click.stop="stopUnloggedWorker(w)">停未登陆</a-button>
                 <a-button size="mini" type="text" @click.stop="stopUnrankedWorker(w)">停未上榜</a-button>
                 <a-button size="mini" type="text" @click.stop="reloadDwell(w)">刷新未上榜</a-button>
@@ -127,6 +128,7 @@
                       @click="douyinReload([{ workerId: w.workerId, profileName: p.profileName }])">刷新</a-button>
                     <a-button v-if="p.state === 'busy'" size="mini" type="text"
                       @click="takeScreenshot(w.workerId, p.profileName, p.taskId)">截图</a-button>
+                    <a-divider v-if="p.state === 'busy'" direction="vertical" :margin="4" />
                     <a-button v-if="p.state === 'busy'" size="mini" type="text" status="danger"
                       @click="stopNode(w.workerId, p.profileName)">停止</a-button>
                   </a-space>
