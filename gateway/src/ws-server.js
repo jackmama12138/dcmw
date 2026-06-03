@@ -247,7 +247,8 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteSto
       // 原子化更新任务结果（Lua 脚本保证读改写一致性）
       const task = await taskStore.atomicTaskResult(String(task_id), status === 'success');
       if (!task) {
-        logger.warn(`[${workerId}] 收到未知任务 ${task_id} 的 task_result`);
+        // 任务已被 WS stop 指令 force-complete，task_result 晚到属正常，不算异常
+        logger.debug(`[${workerId}] 收到已完成任务 ${task_id} 的 task_result，忽略`);
         return;
       }
 
@@ -342,10 +343,15 @@ async function handleClientMessage(ws, msg, { registry, taskStore, sqliteStore }
       const w = registry.workers.get(worker_id);
       const slot = w?.profiles.get(profile);
       if (!slot || slot.state !== 'busy') break;
-      registry.sendTo(worker_id, { type: 'stop_task', task_id: slot.taskId, profile });
+      const _taskId = slot.taskId;
+      registry.sendTo(worker_id, { type: 'stop_task', task_id: _taskId, profile });
       registry.markIdle(worker_id, profile);
       const _stoppedSlot = registry.workers.get(worker_id)?.profiles.get(profile);
       if (_stoppedSlot) _stoppedSlot.stoppedAt = Date.now();
+      if (_taskId) {
+        const t = await taskStore.atomicForceComplete(String(_taskId));
+        if (t) sqliteStore.archiveTask(t);
+      }
       logger.info(`[WS] 停止节点 → ${worker_id}:${profile}`);
       sseBus.notifyAll();
       break;
@@ -356,12 +362,15 @@ async function handleClientMessage(ws, msg, { registry, taskStore, sqliteStore }
       if (!worker_id) break;
       const busySlots = registry.getBusySlots(worker_id);
       const _now1 = Date.now();
+      const _taskIds1 = [...new Set(busySlots.map(s => s.taskId).filter(Boolean))];
       for (const { profileName, taskId } of busySlots) {
         registry.sendTo(worker_id, { type: 'stop_task', task_id: taskId, profile: profileName });
         registry.markIdle(worker_id, profileName);
         const _s = registry.workers.get(worker_id)?.profiles.get(profileName);
         if (_s) _s.stoppedAt = _now1;
       }
+      const _r1 = await Promise.all(_taskIds1.map(id => taskStore.atomicForceComplete(String(id))));
+      _r1.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
       logger.info(`[WS] 停止 Worker ${worker_id}: ${busySlots.length} 个节点`);
       sseBus.notifyAll();
       break;
@@ -372,12 +381,15 @@ async function handleClientMessage(ws, msg, { registry, taskStore, sqliteStore }
       if (!target_url) break;
       const slots = registry.getSlotsByUrl(target_url);
       const _now2 = Date.now();
+      const _taskIds2 = [...new Set(slots.map(s => s.taskId).filter(Boolean))];
       for (const { workerId, profileName, taskId } of slots) {
         registry.sendTo(workerId, { type: 'stop_task', task_id: taskId, profile: profileName });
         registry.markIdle(workerId, profileName);
         const _s = registry.workers.get(workerId)?.profiles.get(profileName);
         if (_s) _s.stoppedAt = _now2;
       }
+      const _r2 = await Promise.all(_taskIds2.map(id => taskStore.atomicForceComplete(String(id))));
+      _r2.filter(Boolean).forEach(t => sqliteStore.archiveTask(t));
       logger.info(`[WS] 按 URL 停止 [${target_url}]: ${slots.length} 个节点`);
       sseBus.notifyAll();
       break;
