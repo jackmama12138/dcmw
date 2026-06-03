@@ -326,7 +326,10 @@ async function navigate(context, { url, waitUntil = 'commit', blockNewTabs = fal
     const stopPromise = new Promise((_, reject) => {
       if (ctrl?.stopped) return reject(new Error('stopped'));
       interval = setInterval(() => {
-        if (ctrl?.stopped) reject(new Error('stopped'));
+        if (ctrl?.stopped) {
+          clearInterval(interval); // stop 触发时立即自清，不等 goto 完成
+          reject(new Error('stopped'));
+        }
       }, 200);
     });
     const cleanup = () => {
@@ -370,8 +373,8 @@ async function wait(_context, params, ctrl) {
     .split(',').map(Number);
   const min   = params.min ?? defaultMin ?? 3000;
   const max   = params.max ?? defaultMax ?? 4000;
-  const lo    = clamp(Math.min(min, max), 0, Infinity);
-  const hi    = clamp(Math.max(min, max), lo, Infinity);
+  const lo    = clamp(Math.min(min, max), 0, 300_000);   // 上限 5 分钟
+  const hi    = clamp(Math.max(min, max), lo, 300_000);
   const delay = lo + Math.floor(Math.random() * (hi - lo + 1));
   const end   = Date.now() + delay;
   await new Promise(resolve => {
