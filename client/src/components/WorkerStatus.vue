@@ -10,6 +10,7 @@
         <div class="ws__worker-head">
           <a-badge :status="w.connected ? 'success' : 'danger'" />
           <span class="mono ws__worker-id">{{ w.workerId }}</span>
+          <a-button size="mini" type="outline" @click="onRadmin(w.workerId)" style="margin-left:8px">Radmin</a-button>
           <a-space :size="12" class="ws__worker-stats">
             <span class="ws__stat">空闲 <b class="t-green">{{ w.slots.idle }}</b></span>
             <span class="ws__stat">忙碌 <b class="t-amber">{{ w.slots.busy }}</b></span>
@@ -31,7 +32,17 @@
 </template>
 
 <script setup>
+import { connectRadmin } from '../api.js';
+
 const props = defineProps({ workers: { type: Array, default: () => [] } });
+
+async function onRadmin(workerId) {
+  try {
+    await connectRadmin(workerId);
+  } catch (e) {
+    console.error('Radmin 连接失败', e);
+  }
+}
 
 function profileColor(state) {
   return {

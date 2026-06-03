@@ -158,5 +158,16 @@ gateway/data/screenshots/
 
 # Built frontend assets
 gateway/public/assets/
+gateway/public/index.html
+
 # SQLite database
 data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Playwright MCP temp recordings
+.playwright-mcp/
+
+# Binary installers
+*.msi
+*.zip
