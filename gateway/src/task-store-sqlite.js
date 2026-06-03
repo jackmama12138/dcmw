@@ -316,8 +316,22 @@ class TaskStoreSQLite {
 
   async pruneCompleted(maxAgeSec = 86400) {
     const cutoff = Date.now() - maxAgeSec * 1000;
-    const result = this.db.prepare("DELETE FROM tasks WHERE status = 'done' AND created_at < ?").run(cutoff);
-    return result.changes;
+    return this.db.transaction(() => {
+      // 先收集要删除的 task_id，再同步删除对应的 captures
+      const rows = this.db.prepare("SELECT task_id FROM tasks WHERE status = 'done' AND created_at < ?").all(cutoff);
+      if (rows.length === 0) return 0;
+      const ids = rows.map(r => r.task_id);
+      const placeholders = ids.map(() => '?').join(',');
+      this.db.prepare(`DELETE FROM captures WHERE task_id IN (${placeholders})`).run(...ids);
+      const result = this.db.prepare("DELETE FROM tasks WHERE status = 'done' AND created_at < ?").run(cutoff);
+      return result.changes;
+    })();
+  }
+
+  // 按时间裁剪 captures，保留最近 maxAgeSec 秒内的数据
+  pruneCaptures(maxAgeSec = 86400) {
+    const cutoff = Date.now() - maxAgeSec * 1000;
+    return this.db.prepare('DELETE FROM captures WHERE created_at < ?').run(cutoff).changes;
   }
 }
 

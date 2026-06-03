@@ -86,6 +86,9 @@ async function main() {
       return 0;
     });
     if (count > 0) logger.info(`Pruned ${count} completed task(s) from index`);
+    // 同步清理 captures 表中超过 24h 的数据，防止无限膨胀
+    const capCount = sqliteStore.pruneCaptures(86400);
+    if (capCount > 0) logger.info(`Pruned ${capCount} capture row(s)`);
   }, 60 * 60 * 1000); // every hour
 
   // Purge screenshot directories older than 24h to prevent disk exhaustion.
