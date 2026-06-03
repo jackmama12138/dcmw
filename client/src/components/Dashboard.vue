@@ -565,6 +565,8 @@ onMounted(async () => {
 .db__progress-action { font-size: var(--fs-xs); color: var(--tx-3); flex-shrink: 0; }
 
 .db__right-actions { justify-content: flex-end; width: 100%; }
+.db__right-actions :deep(.arco-divider-vertical),
+.db__worker-actions :deep(.arco-divider-vertical) { border-color: var(--tx-4); opacity: 0.5; }
 
 .db__publish { flex-shrink: 0; }
 .db__publish-row { display: flex; align-items: center; gap: 12px; }

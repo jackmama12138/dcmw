@@ -228,6 +228,7 @@ async function screenshotGroup(nodes) {
 
 .at__count { font-size: var(--fs-sm); color: var(--success); text-align: center; font-weight: 600; }
 .at__actions { justify-content: flex-end; }
+.at__actions :deep(.arco-divider-vertical) { border-color: var(--tx-4); opacity: 0.5; }
 
 .at__empty { padding: 48px 0; }
 </style>
