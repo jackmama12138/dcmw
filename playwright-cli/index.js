@@ -124,7 +124,9 @@ async function extractElements(page) {
         const ce   = el.getAttribute('contenteditable');
 
         const results = [];
-        if (ph)   results.push({ role: 'input',       name: ph,   extra: 'placeholder' });
+        // contenteditable 元素有 placeholder 时只生成 CSS 选择器，不生成 getByPlaceholder
+        // getByPlaceholder 只匹配 <input>/<textarea>，对 contenteditable div 无效
+        if (ph && ce === null) results.push({ role: 'input', name: ph, extra: 'placeholder' });
         if (tid)  results.push({ role: 'testid',       name: tid,  extra: 'testid' });
         if (id)   results.push({ role: tag,            name: id,   extra: 'id' });
         if (aria) results.push({ role: tag,            name: aria, extra: 'aria-label' });
@@ -162,6 +164,23 @@ async function extractElements(page) {
     seen.add(sel);
     all.push({ role, name, selector: sel, label: `[${extra}] ${name}` });
   }
+
+  // 验证每个 selector 实际匹配数，count=1 唯一可用，>1 有歧义，0 无效
+  await Promise.all(all.map(async el => {
+    try {
+      el.count = await page.locator(el.selector).count();
+    } catch {
+      el.count = 0;
+    }
+  }));
+
+  // 排序：唯一(count=1) 优先，其次按可靠性(id > testid > contenteditable > role > text)
+  const PRIORITY = { id: 0, testid: 1, contenteditable: 2, 'aria-label': 3, role: 4, placeholder: 5, generic: 6 };
+  all.sort((a, b) => {
+    if (a.count === 1 && b.count !== 1) return -1;
+    if (a.count !== 1 && b.count === 1) return 1;
+    return (PRIORITY[a.role] ?? 9) - (PRIORITY[b.role] ?? 9);
+  });
 
   return all;
 }
@@ -226,10 +245,15 @@ class SelectorUI {
       const idx  = this.offset + i;
       const el   = slice[i];
       const isOn = idx === this.cursor;
+      // 匹配数徽标：1=绿色唯一 >1=黄色歧义 0=红色无效
+      const countBadge = el.count === 1
+        ? '\x1b[32m[✓1]\x1b[0m'
+        : el.count > 1
+          ? `\x1b[33m[!${el.count}]\x1b[0m`
+          : '\x1b[31m[✗0]\x1b[0m';
       const prefix = isOn ? '\x1b[1;32m❯ \x1b[0m' : '  ';
       const label  = isOn ? `\x1b[1m${el.label}\x1b[0m` : `\x1b[90m${el.label}\x1b[0m`;
-      const sel    = isOn ? `\x1b[32m${el.selector}\x1b[0m` : '';
-      out.push(`${prefix}${label}`);
+      out.push(`${prefix}${countBadge} ${label}`);
       if (isOn) out.push(`    \x1b[2m→ ${el.selector}\x1b[0m`);
     }
 
@@ -270,9 +294,28 @@ async function main() {
     }
   } else {
     const dir = userDataDir || require('path').join(require('os').homedir(), 'ChromeProfiles/Profile1');
+    const chromePath = process.env.CHROME_PATH || (() => {
+      const candidates = [
+        // Windows
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        require('path').join(require('os').homedir(), 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe'),
+        // Mac
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        // Linux
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+      ];
+      const fs = require('fs');
+      return candidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) || null;
+    })();
+    if (!chromePath) {
+      console.error('找不到 Chrome，请设置环境变量 CHROME_PATH=<chrome路径>');
+      process.exit(1);
+    }
     context = await chromium.launchPersistentContext(dir, {
       headless      : false,
-      executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      executablePath: chromePath,
     });
     browser    = null;
     ownBrowser = true;
