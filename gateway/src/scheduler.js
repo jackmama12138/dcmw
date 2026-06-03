@@ -71,8 +71,11 @@ class Scheduler {
       return;
     }
     this._dispatching = true;
+    // 每 Worker 本轮已派发数：跨 pending 重入的多次 _run 共享，
+    // 防止一次调度周期内同一 Worker 被重复发放 perWorkerBatch 配额
+    const workerDispatched = new Map();
     try {
-      await this._run();
+      await this._run(workerDispatched);
       let guard = 0;
       while (this._pendingDispatch) {
         if (++guard > 20) {
@@ -80,7 +83,7 @@ class Scheduler {
           break;
         }
         this._pendingDispatch = false;
-        await this._run();
+        await this._run(workerDispatched);
       }
     } catch (err) {
       logger.error(`Scheduler error: ${err.message}`);
@@ -90,7 +93,7 @@ class Scheduler {
     }
   }
 
-  async _run() {
+  async _run(workerDispatched) {
     const tasks = await this._taskStore.getDispatchable();
     if (tasks.length === 0) return;
 
@@ -103,8 +106,8 @@ class Scheduler {
       : interleaveByWorker(rawSlots);
 
     // 每 Worker 本轮最多新启动数量（不计已在运行的节点）
+    // workerDispatched 由 dispatch() 传入，跨 pending 重入累计，保证一次调度周期每 Worker 不超过 perBatch
     const perBatch = this._perWorkerBatch;
-    const workerDispatched = new Map(); // workerId → 本轮已派发数（从 0 开始）
 
     const usedSlots = new Set();
 

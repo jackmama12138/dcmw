@@ -202,14 +202,11 @@ const RANKLIST_REASONS = {
   no_page      : '无活跃页面',
 };
 function handleRanklistResult(msg) {
+  // 成功路径交给 Dashboard 的聚合 toast（避免批量检查时刷屏），这里只提示失败
+  if (msg.ok) return;
   const node = `${msg.worker_id}:${msg.profile}`;
-  if (msg.ok) {
-    const who = msg.nickname ? ` ${msg.nickname}` : '';
-    toast(`${node} 榜单排名 #${msg.rank}${who}`, 'success');
-  } else {
-    const why = RANKLIST_REASONS[msg.reason] ?? msg.reason ?? '未知原因';
-    toast(`${node} 榜单检查跳过：${why}`, 'warn');
-  }
+  const why = RANKLIST_REASONS[msg.reason] ?? msg.reason ?? '未知原因';
+  toast(`${node} 榜单检查跳过：${why}`, 'warn');
 }
 
 provide('wsSend', wsSend);
