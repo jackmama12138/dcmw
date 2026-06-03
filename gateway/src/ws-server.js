@@ -118,7 +118,7 @@ function createWsServer(httpServer, { registry, taskStore, sqliteStore, schedule
   // 监听 plugins/ 目录，文件新增或修改时广播给所有在线 Worker
   if (fs.existsSync(PLUGINS_DIR)) {
     let debounce = null;
-    fs.watch(PLUGINS_DIR, (event, filename) => {
+    const pluginWatcher = fs.watch(PLUGINS_DIR, (event, filename) => {
       if (!filename || !filename.endsWith('.js')) return;
       clearTimeout(debounce);
       debounce = setTimeout(() => {
@@ -134,6 +134,7 @@ function createWsServer(httpServer, { registry, taskStore, sqliteStore, schedule
         }
       }, 300);
     });
+    wss.on('close', () => pluginWatcher.close());
     logger.info(`监听插件目录: ${PLUGINS_DIR}`);
   } else {
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
@@ -169,7 +170,7 @@ async function cleanupWorker(workerId, ws, { registry, taskStore, scheduler }) {
   sseBus.notifyAll();
 
   if (busySlots.length > 0) {
-    scheduler.dispatch();
+    scheduler.dispatch().catch(err => logger.error(`dispatch error: ${err.message}`));
   }
 }
 
@@ -197,7 +198,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteSto
       }
 
       sseBus.notifyWorkers();
-      scheduler.dispatch();
+      scheduler.dispatch().catch(err => logger.error(`dispatch error: ${err.message}`));
       break;
     }
 
@@ -259,7 +260,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteSto
       }
 
       sseBus.notifyAll();
-      scheduler.dispatch();
+      scheduler.dispatch().catch(err => logger.error(`dispatch error: ${err.message}`));
       break;
     }
 
@@ -281,7 +282,7 @@ async function handleMessage(workerId, ws, msg, { registry, taskStore, sqliteSto
       }
 
       sseBus.notifyAll();
-      setTimeout(() => scheduler.dispatch(), 1500);
+      setTimeout(() => scheduler.dispatch().catch(err => logger.error(`dispatch error: ${err.message}`)), 1500);
       break;
     }
 

@@ -98,7 +98,7 @@ class TaskStoreSQLite {
     return this.db.transaction(() => {
       const row = this.db.prepare('SELECT data FROM tasks WHERE task_id = ?').get(String(taskId));
       if (!row) return null;
-      const t = JSON.parse(row.data);
+      let t; try { t = JSON.parse(row.data); } catch { return null; }
       t.running = Math.max(0, t.running - 1);
       if (isSuccess) t.completed++; else t.failed++;
       if (t.status !== 'done') {
@@ -120,7 +120,7 @@ class TaskStoreSQLite {
     return this.db.transaction(() => {
       const row = this.db.prepare('SELECT data FROM tasks WHERE task_id = ?').get(String(taskId));
       if (!row) return null;
-      const t = JSON.parse(row.data);
+      let t; try { t = JSON.parse(row.data); } catch { return null; }
       t.running = Math.max(0, t.running - 1);
       t.updated_at = Date.now();
       this.db.prepare('UPDATE tasks SET data = ?, updated_at = ? WHERE task_id = ?')
@@ -133,7 +133,7 @@ class TaskStoreSQLite {
     return this.db.transaction(() => {
       const row = this.db.prepare('SELECT data FROM tasks WHERE task_id = ?').get(String(taskId));
       if (!row) return null;
-      const t = JSON.parse(row.data);
+      let t; try { t = JSON.parse(row.data); } catch { return null; }
       t.running += count;
       t.status = 'running';
       t.updated_at = Date.now();
@@ -147,7 +147,7 @@ class TaskStoreSQLite {
     return this.db.transaction(() => {
       const row = this.db.prepare('SELECT data FROM tasks WHERE task_id = ?').get(String(taskId));
       if (!row) return null;
-      const t = JSON.parse(row.data);
+      let t; try { t = JSON.parse(row.data); } catch { return null; }
       t.task_time = Math.min(Math.max(1, t.task_time + delta), 86400);
       t.updated_at = Date.now();
       this.db.prepare('UPDATE tasks SET data = ?, updated_at = ? WHERE task_id = ?')
@@ -160,7 +160,7 @@ class TaskStoreSQLite {
     return this.db.transaction(() => {
       const row = this.db.prepare('SELECT data FROM tasks WHERE task_id = ?').get(String(taskId));
       if (!row) return null;
-      const t = JSON.parse(row.data);
+      let t; try { t = JSON.parse(row.data); } catch { return null; }
       t.status = 'done';
       t.updated_at = Date.now();
       this.db.prepare('UPDATE tasks SET data = ?, status = ?, updated_at = ?, is_active = 0 WHERE task_id = ?')
@@ -295,7 +295,7 @@ class TaskStoreSQLite {
   async resetRunning() {
     const rows = this.db.prepare("SELECT task_id, data FROM tasks WHERE status != 'done'").all();
     for (const row of rows) {
-      const task = JSON.parse(row.data);
+      let task; try { task = JSON.parse(row.data); } catch { continue; }
       if (task.running === 0) continue;
       task.running = 0;
       task.status = task.completed + task.failed > 0 ? 'running' : 'pending';

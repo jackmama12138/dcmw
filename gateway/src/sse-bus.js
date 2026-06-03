@@ -2,6 +2,7 @@
 // 两类推送各自独立 debounce，避免高频事件重复刷新 DOM
 
 const clientBus = require('./client-bus');
+const logger    = require('./logger');
 
 class SseBus {
   constructor() {
@@ -83,7 +84,7 @@ class SseBus {
     if (!this._taskStore || clientBus.size === 0) return;
     this._taskStore.getAll(100).then(tasks => {
       clientBus.broadcast({ type: 'tasks_update', tasks });
-    }).catch(() => {});
+    }).catch(err => logger.warn(`_pushWsTasks 失败: ${err.message}`));
   }
 }
 
