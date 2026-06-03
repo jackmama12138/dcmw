@@ -138,6 +138,33 @@ async function extractElements(page) {
     );
   } catch {}
 
+  // 3. 可见叶节点文字：提取纯文字 div/span/p 等，生成 getByText() 选择器
+  // 补全 button/link 以外的状态文字（如"直播已结束"、提示语、标签等）
+  let textNodes = [];
+  try {
+    textNodes = await page.$$eval('*', els => els
+      .filter(el => {
+        // 只取叶节点（无子元素）
+        if (el.children.length > 0) return false;
+        const text = (el.textContent || '').trim();
+        // 文字长度 2-40，排除纯数字、纯符号
+        if (text.length < 2 || text.length > 40) return false;
+        if (/^[\d\s.,，。！!?？]+$/.test(text)) return false;
+        // 必须可见
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return false;
+        const st = window.getComputedStyle(el);
+        if (st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+        // 排除 input/textarea/script/style/noscript
+        const tag = el.tagName.toLowerCase();
+        if (['input','textarea','script','style','noscript','option'].includes(tag)) return false;
+        return true;
+      })
+      .slice(0, 200)
+      .map(el => ({ text: (el.textContent || '').trim() }))
+    );
+  } catch {}
+
   // 合并、去重（按 selector 字符串）
   const seen = new Set();
   const all  = [];
@@ -163,6 +190,14 @@ async function extractElements(page) {
     if (seen.has(sel)) continue;
     seen.add(sel);
     all.push({ role, name, selector: sel, label: `[${extra}] ${name}` });
+  }
+
+  for (const { text } of textNodes) {
+    const escaped = text.replace(/'/g, "\\'");
+    const sel = `getByText('${escaped}', { exact: true })`;
+    if (seen.has(sel)) continue;
+    seen.add(sel);
+    all.push({ role: 'text', name: text, selector: sel, label: `[text] ${text}` });
   }
 
   // 验证每个 selector 实际匹配数，count=1 唯一可用，>1 有歧义，0 无效
