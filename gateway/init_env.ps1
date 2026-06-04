@@ -107,6 +107,12 @@ if (-not (Test-Path "package.json")) {
     & npm cache clean --force | Out-Null
     
     # 强行阻断更好 sqlite 执行 C++ 本地编译，避开 VS 编译器报错
+    # Windows 上把 better-sqlite3 版本改为有预编译包的 v9.6.0
+    $pkgJson = Get-Content "package.json" -Raw
+    $pkgJson = $pkgJson -replace '"better-sqlite3":\s*"\^?[\d\.]+?"', '"better-sqlite3": "^9.6.0"'
+    Set-Content "package.json" $pkgJson -Encoding UTF8
+    Log-Info "Patched package.json: better-sqlite3 -> ^9.6.0"
+
     Log-Info "Executing npm install with script suppression..."
     & npm install --ignore-scripts
     
