@@ -256,9 +256,12 @@ async function handleTask(task) {
       // 导致新任务被 slot_busy 拒绝并触发 20 秒冷却
       try { await pool.release(profile); } catch (err) {
         logger.error(`[${profile}] pool.release 失败: ${err.message}`);
-        // 强制将槽位恢复为空闲，保证后续任务可以使用该 Profile
+        // 尝试关闭 context 再清除引用，避免 Chrome 进程驻留
         const s = pool.slots.get(profile);
-        if (s) { s.state = 'idle'; s.context = null; s.releasing = false; }
+        if (s) {
+          if (s.context) { try { await s.context.close(); } catch {} }
+          s.state = 'idle'; s.context = null; s.releasing = false;
+        }
       }
       client.send({ type: 'task_result', ...result });
     },

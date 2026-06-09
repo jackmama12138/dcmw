@@ -179,6 +179,11 @@ class ChromePool {
         forceClose = true;
         // 继续走下方 forceClose 逻辑
       } else {
+        // 关闭多余的页面，只保留第一个 about:blank，避免残留 tab 干扰下次任务
+        try {
+          const pages = slot.context.pages();
+          await Promise.allSettled(pages.slice(1).map(p => p.close()));
+        } catch {}
         slot.state = STATE.IDLE;
         logger.info(`[${profileName}] 已释放 → 空闲（Chrome 保留）`);
         // 10分钟无任务则真正关闭，释放内存
@@ -193,6 +198,8 @@ class ChromePool {
       slot._idleTimer = null;
     }
     if (slot.context) {
+      // 先标为 IDLE，这样 await 期间若 acquire() 抢入会把它改回 BUSY，才能正确检测抢占
+      slot.state = STATE.IDLE;
       await this._saveWindowState(profileName, slot.context);
       // acquire() 可能在 saveWindowState 的 await 期间抢先把 slot 设为 BUSY
       // 此时不能继续关闭，否则会中断正在执行的任务

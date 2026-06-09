@@ -298,15 +298,16 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
 
   // 获取当前调度模式
   router.get('/api/scheduler/config', (_req, res) => {
-    res.json({ dispatch_mode: scheduler.getMode(), per_worker_batch: scheduler.getPerWorkerBatch() });
+    res.json({ dispatch_mode: scheduler.getMode(), per_worker_batch: scheduler.getPerWorkerBatch(), stagger_ms: scheduler.getStaggerMs() });
   });
 
   router.post('/api/scheduler/config', (req, res) => {
-    const { dispatch_mode, per_worker_batch } = req.body ?? {};
+    const { dispatch_mode, per_worker_batch, stagger_ms } = req.body ?? {};
     try {
       if (dispatch_mode) scheduler.setMode(dispatch_mode);
       if (per_worker_batch != null) scheduler.setPerWorkerBatch(per_worker_batch);
-      return res.json({ ok: true, dispatch_mode: scheduler.getMode(), per_worker_batch: scheduler.getPerWorkerBatch() });
+      if (stagger_ms != null) scheduler.setStaggerMs(stagger_ms);
+      return res.json({ ok: true, dispatch_mode: scheduler.getMode(), per_worker_batch: scheduler.getPerWorkerBatch(), stagger_ms: scheduler.getStaggerMs() });
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -583,6 +584,7 @@ function createRouter({ taskStore, sqliteStore, registry, scheduler }) {
       return res.status(400).json({ error: 'worker_id 格式不合法' });
     }
     const vbsContent = `Set WshShell = WScript.CreateObject("WScript.Shell")
+Set oData = CreateObject("MSForms.DataObject")
 WshShell.Run "Radmin.exe /connect:${worker_id}:7899"
 WScript.Sleep 1500
 WshShell.AppActivate "Radmin " & ChrW(23433) & ChrW(20840) & ChrW(24615)
@@ -590,13 +592,15 @@ WScript.Sleep 200
 WshShell.SendKeys "+"
 WScript.Sleep 300
 
-' 用剪贴板粘贴，避免中文输入法干扰 SendKeys
-WshShell.Run "powershell -Command ""Set-Clipboard 'admin'""", 0, True
+' 用 MSForms.DataObject 同步写剪贴板，避免 PowerShell 子进程竞态
+oData.SetText "admin"
+oData.PutInClipboard
 WshShell.SendKeys "^v"
 WScript.Sleep 200
 WshShell.SendKeys "{TAB}"
 WScript.Sleep 200
-WshShell.Run "powershell -Command ""Set-Clipboard 'radmin.7899'""", 0, True
+oData.SetText "radmin.7899"
+oData.PutInClipboard
 WshShell.SendKeys "^v"
 WScript.Sleep 200
 WshShell.SendKeys "{ENTER}"

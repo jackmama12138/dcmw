@@ -147,6 +147,24 @@ function listActions() {
 
 // ─── 核心分发 ─────────────────────────────────────────────────────────────────
 
+function resolveParams(params, vars) {
+  if (Array.isArray(params)) return params.map(v => resolveParams(v, vars));
+  if (params && typeof params === 'object') {
+    return Object.fromEntries(Object.entries(params).map(([k, v]) => [k, resolveParams(v, vars)]));
+  }
+  if (typeof params === 'string') {
+    return params
+      .replace(/\{target_url\}/g, vars.target_url ?? '')
+      .replace(/\{random:(\d+)\}/g, (_, n) => {
+        const len = Math.min(parseInt(n, 10), 20);
+        let s = '';
+        while (s.length < len) s += Math.random().toString().slice(2);
+        return s.slice(0, len);
+      });
+  }
+  return params;
+}
+
 function runStep(context, step, ctrl) {
   if (!step || typeof step !== 'object') {
     throw new Error(`runStep: 无效的步骤 "${JSON.stringify(step)}"`);
@@ -156,7 +174,7 @@ function runStep(context, step, ctrl) {
 
   const fn = _actionMap[type];
   if (!fn) throw new Error(`runStep: 未知的动作类型 "${type}"`);
-  return fn(context, params, ctrl);
+  return fn(context, resolveParams(params, { target_url: ctrl.target_url }), ctrl);
 }
 
 // ─── 启动时初始化 ─────────────────────────────────────────────────────────────

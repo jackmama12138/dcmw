@@ -44,6 +44,8 @@ class Scheduler {
     this._pendingDispatch = false;
     this._mode = 'sequential';    // 'sequential' | 'random'
     this._perWorkerBatch = 1;     // 每次调度同一 Worker 最多启动几个节点
+    this._staggerMs = 0;          // 同一 Worker 两次派发之间的最小间隔（毫秒）
+    this._workerLastDispatch = new Map(); // workerId → 上次派发时间戳
   }
 
   getMode() { return this._mode; }
@@ -61,6 +63,13 @@ class Scheduler {
   setPerWorkerBatch(n) {
     this._perWorkerBatch = Math.max(1, Number(n) || 1);
     logger.info(`Per-worker batch → ${this._perWorkerBatch}`);
+  }
+
+  getStaggerMs() { return this._staggerMs; }
+
+  setStaggerMs(ms) {
+    this._staggerMs = Math.max(0, Number(ms) || 0);
+    logger.info(`Stagger → ${this._staggerMs}ms`);
   }
 
   // Fix ⑥: if a dispatch is already running, mark pending instead of dropping.
@@ -132,15 +141,20 @@ class Scheduler {
       }
 
       // 每 Worker 限流：逐个挑选 slot，边挑边计数，保证本轮每 Worker 不超过 perBatch
+      // 同时检查 stagger 间隔，未到间隔的 Worker 本轮跳过
+      const now = Date.now();
       const batch = [];
       for (const slot of candidateSlots) {
         if (batch.length >= remaining) break;
         const already = workerDispatched.get(slot.workerId) ?? 0;
-        if (already < perBatch) {
-          batch.push(slot);
-          workerDispatched.set(slot.workerId, already + 1);
-          usedSlots.add(idleSlots.indexOf(slot));
+        if (already >= perBatch) continue;
+        if (this._staggerMs > 0) {
+          const last = this._workerLastDispatch.get(slot.workerId) ?? 0;
+          if (now - last < this._staggerMs) continue;
         }
+        batch.push(slot);
+        workerDispatched.set(slot.workerId, already + 1);
+        usedSlots.add(idleSlots.indexOf(slot));
       }
 
       let sentCount = 0;
@@ -159,6 +173,7 @@ class Scheduler {
 
         if (sent) {
           sentCount++;
+          this._workerLastDispatch.set(workerId, Date.now());
           logger.info(`[${this._mode}] Dispatched ${task.task_id} → [${workerId}:${profileName}]`);
         } else {
           this._registry.markIdle(workerId, profileName);

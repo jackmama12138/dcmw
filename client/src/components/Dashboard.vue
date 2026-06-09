@@ -22,6 +22,10 @@
           <a-input-number v-model="perWorkerBatch" :min="1" size="mini" class="db__batch" @change="savePerWorkerBatch" />
           <span class="t-muted">个/Worker</span>
           <a-divider direction="vertical" />
+          <span class="t-muted">间隔</span>
+          <a-input-number v-model="staggerSec" :min="0" :step="1" size="mini" class="db__batch" @change="saveStagger" />
+          <span class="t-muted">秒</span>
+          <a-divider direction="vertical" />
           <a-radio-group v-model="dispatchMode" type="button" size="mini" @change="setMode">
             <a-radio value="sequential">顺序</a-radio>
             <a-radio value="random">随机</a-radio>
@@ -241,6 +245,7 @@ watch(() => props.workers, (newWorkers) => {
 // ── 调度模式 & 每次启动数 ──────────────────────────────
 const dispatchMode   = ref('sequential');
 const perWorkerBatch = ref(1);
+const staggerSec     = ref(0);
 const selectedWorkers = ref(new Set());
 const lastSelectedWorkerId = ref(null);
 const dzCooldowns = ref(new Set());
@@ -368,6 +373,12 @@ async function setMode(mode) {
 
 async function savePerWorkerBatch() {
   try { await setSchedulerConfig({ per_worker_batch: perWorkerBatch.value }); } catch (err) { toast(err.message, 'warn'); }
+}
+async function saveStagger() {
+  try {
+    await setSchedulerConfig({ stagger_ms: Math.round(staggerSec.value * 1000) });
+    localStorage.setItem('dcmw_stagger_sec', String(staggerSec.value));
+  } catch (err) { toast(err.message, 'warn'); }
 }
 async function adjust(url, delta) {
   try { await adjustTime(url, delta); emit('refresh'); } catch (err) { toast(err.message, 'warn'); }
@@ -522,7 +533,17 @@ async function submit() {
 }
 
 onMounted(async () => {
-  try { const cfg = await fetchSchedulerConfig(); dispatchMode.value = cfg.dispatch_mode; perWorkerBatch.value = cfg.per_worker_batch ?? 1; } catch {}
+  try {
+    const cached = parseFloat(localStorage.getItem('dcmw_stagger_sec'));
+    if (!isNaN(cached) && cached > 0) {
+      staggerSec.value = cached;
+      await setSchedulerConfig({ stagger_ms: Math.round(cached * 1000) }).catch(() => {});
+    }
+    const cfg = await fetchSchedulerConfig();
+    dispatchMode.value = cfg.dispatch_mode;
+    perWorkerBatch.value = cfg.per_worker_batch ?? 1;
+    if (isNaN(cached) || cached === 0) staggerSec.value = (cfg.stagger_ms ?? 0) / 1000;
+  } catch {}
   templates.value = await fetchTemplates().catch(() => []);
   if (!form.value.task_type && templates.value.length) {
     form.value.task_type = templates.value[0].name;

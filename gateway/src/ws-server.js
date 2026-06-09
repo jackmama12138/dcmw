@@ -163,6 +163,10 @@ async function cleanupWorker(workerId, ws, { registry, taskStore, scheduler }) {
   }
 
   registry.remove(workerId);
+  // 强制关闭 ws，确保 Worker 收到 close 事件后触发重连
+  if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+    ws.terminate();
+  }
   logger.info(
     `[${workerId}] 已断开 — 释放 ${busySlots.length} 个进行中的槽位`
   );
